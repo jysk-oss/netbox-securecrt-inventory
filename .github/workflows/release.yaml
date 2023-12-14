@@ -1,0 +1,29 @@
+name: Release version
+
+on:
+  push:
+    branches: [ "master" ]
+    # Publish semver tags as releases.
+    tags: [ 'v*.*.*' ]
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.20
+
+      - name: Build release files
+        run: |
+          ./tools/build.sh
+
+      - uses: ncipollo/release-action@v1
+        with:
+          artifacts: "dist/*"
+          generateReleaseNotes: true
