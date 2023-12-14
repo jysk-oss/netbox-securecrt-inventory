@@ -8,9 +8,10 @@ CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -ldflags "-H=windowsgui" -o dis
 CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -o dist/darwin/arm64/securecrt-inventory.app/Contents/MacOS/securecrt-inventory main.go
 CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -o dist/darwin/amd64/securecrt-inventory.app/Contents/MacOS/securecrt-inventory main.go
 
-zip -r dist/securecrt-inventory-darwin-arm64.zip dist/darwin/arm64/securecrt-inventory.app 
-zip -r dist/securecrt-inventory-darwin-amd64.zip dist/darwin/amd64/securecrt-inventory.app 
-zip -r dist/securecrt-inventory-windows-amd64.zip dist/securecrt-inventory.exe
+cd dist
+cd darwin/arm64 && zip -r ../../securecrt-inventory-darwin-arm64.zip securecrt-inventory.app
+cd ../amd64 && zip -r ../../securecrt-inventory-darwin-amd64.zip securecrt-inventory.app
+cd ../../ && zip -r -j securecrt-inventory-windows-amd64.zip securecrt-inventory.exe
 
-rm dist/securecrt-inventory.exe
-rm -rf dist/darwin
+rm securecrt-inventory.exe
+rm -rf darwin
