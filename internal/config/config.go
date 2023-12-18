@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -57,6 +58,13 @@ func NewConfig(configPath string) (*Config, error) {
 		config.PeriodicSyncInterval = &defaultTime
 	}
 
+	// validate the netbox url, and allows us to strip http/https etc
+	url, err := parseRawURL(config.NetboxUrl)
+	if err != nil {
+		return nil, err
+	}
+
+	config.NetboxUrl = url.Host
 	config.configPath = configPath
 	return config, nil
 }
@@ -118,4 +126,17 @@ func ParseFlags() (string, error) {
 
 	// Return the configuration path
 	return configPath, nil
+}
+
+func parseRawURL(rawurl string) (u *url.URL, err error) {
+	u, err = url.ParseRequestURI(rawurl)
+	if err != nil || u.Host == "" {
+		u, repErr := url.ParseRequestURI("https://" + rawurl)
+		if repErr != nil {
+			return nil, err
+		}
+		return u, nil
+	}
+
+	return u, nil
 }
