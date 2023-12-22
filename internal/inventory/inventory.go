@@ -57,6 +57,39 @@ func (i *InventorySync) getSite(sites []*models.Site, siteID int64) (*models.Sit
 	return nil, ErrorFailedToFindSite
 }
 
+func (i *InventorySync) writeSession(sessionType string, site *models.Site, name, ipAddress, siteAddress, deviceType, siteGroup string, extraVars map[string]string) error {
+	sessionData := i.scrt.BuildSessionData(ipAddress, "SSH2", *site.Name, siteAddress, deviceType)
+
+	templateVariables := map[string]string{
+		"type":        sessionType,
+		"tenant_name": *site.Tenant.Name,
+		"region_name": *site.Region.Name,
+		"site_name":   *site.Name,
+		"device_name": name,
+		"site_group":  siteGroup,
+	}
+
+	if len(extraVars) > 0 {
+		for k, v := range extraVars {
+			templateVariables[k] = v
+		}
+	}
+
+	template := templater.GetTemplate(
+		i.cfg.SessionPath.Template,
+		i.cfg.SessionPath.Overwrites,
+		templateVariables,
+	)
+
+	sessionPath := templater.ApplyTemplate(fmt.Sprintf("%s/%s/%s.ini", i.cfg.RootPath, template, name), templateVariables)
+	err := i.scrt.WriteSession(sessionPath, sessionData)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (i *InventorySync) runSync() error {
 	err := i.nb.TestConnection()
 	if err != nil {
@@ -72,6 +105,12 @@ func (i *InventorySync) runSync() error {
 
 	i.systray.SetStatusMessage("Running: Getting devices")
 	devices, err := i.nb.GetDevices()
+	if err != nil {
+		return err
+	}
+
+	i.systray.SetStatusMessage("Running: Getting Virtual Machines")
+	vms, err := i.nb.GetVirtualMachines()
 	if err != nil {
 		return err
 	}
@@ -95,25 +134,34 @@ func (i *InventorySync) runSync() error {
 			siteGroup = *site.Group.Slug
 		}
 
-		sessionData := i.scrt.BuildSessionData(ipAddress, "SSH2", *site.Name, siteAddress, deviceType)
-
-		templateVariables := map[string]string{
-			"tenant_name": *site.Tenant.Name,
-			"region_name": *site.Region.Name,
-			"site_name":   *site.Name,
+		err = i.writeSession("device", site, name, ipAddress, siteAddress, deviceType, siteGroup, map[string]string{
 			"device_role": *device.DeviceRole.Name,
-			"device_name": name,
-			"site_group":  siteGroup,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, device := range vms {
+		site, err := i.getSite(sites, device.Site.ID)
+		if err != nil {
+			return err
 		}
 
-		template := templater.GetTemplate(
-			i.cfg.SessionPath.Template,
-			i.cfg.SessionPath.Overwrites,
-			templateVariables,
-		)
+		name := device.Display
+		ipAddress := strings.Split(*device.PrimaryIp4.Address, "/")[0]
+		siteAddress := strings.ReplaceAll(site.PhysicalAddress, "\r\n", ", ")
+		deviceType := ""
+		if device.Platform != nil {
+			deviceType = device.Platform.Display
+		}
 
-		sessionPath := templater.ApplyTemplate(fmt.Sprintf("%s/%s/%s.ini", i.cfg.RootPath, template, name), templateVariables)
-		err = i.scrt.WriteSession(sessionPath, sessionData)
+		siteGroup := ""
+		if site.Group != nil {
+			siteGroup = *site.Group.Slug
+		}
+
+		err = i.writeSession("virtual_machine", site, name, ipAddress, siteAddress, deviceType, siteGroup, make(map[string]string))
 		if err != nil {
 			return err
 		}

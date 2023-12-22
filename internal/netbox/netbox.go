@@ -8,6 +8,7 @@ import (
 	"github.com/netbox-community/go-netbox/v3/netbox/client"
 	"github.com/netbox-community/go-netbox/v3/netbox/client/dcim"
 	"github.com/netbox-community/go-netbox/v3/netbox/client/status"
+	"github.com/netbox-community/go-netbox/v3/netbox/client/virtualization"
 	"github.com/netbox-community/go-netbox/v3/netbox/models"
 )
 
@@ -68,6 +69,28 @@ func (nb *NetBox) GetDevices() ([]*models.DeviceWithConfigContext, error) {
 		query := dcim.NewDcimDevicesListParams().WithHasPrimaryIP(&hasPrimaryIP).WithLimit(&nb.limit).WithOffset(&currentCount)
 
 		response, err := nb.client.Dcim.DcimDevicesList(query, nil)
+		if err != nil {
+			return nil, ErrFailedToQueryDevices
+		}
+		results = append(results, response.Payload.Results...)
+		if len(response.Payload.Results) < int(nb.limit) {
+			hasMorePages = false
+		}
+	}
+
+	return results, nil
+}
+
+func (nb *NetBox) GetVirtualMachines() ([]*models.VirtualMachineWithConfigContext, error) {
+	hasPrimaryIP := "true"
+
+	var results = make([]*models.VirtualMachineWithConfigContext, 0)
+	hasMorePages := true
+	for hasMorePages {
+		currentCount := int64(len(results))
+		query := virtualization.NewVirtualizationVirtualMachinesListParams().WithHasPrimaryIP(&hasPrimaryIP).WithLimit(&nb.limit).WithOffset(&currentCount)
+
+		response, err := nb.client.Virtualization.VirtualizationVirtualMachinesList(query, nil)
 		if err != nil {
 			return nil, ErrFailedToQueryDevices
 		}
