@@ -13,9 +13,14 @@ import (
 )
 
 type ConfigTemplateOverwrite struct {
-	Key      string
-	Value    string
-	Template string
+	Key      string `yaml:"key"`
+	Value    string `yaml:"value"`
+	Template string `yaml:"template"`
+}
+
+type ConfigNameOverwrite struct {
+	Regex string `yaml:"regex"`
+	Value string `yaml:"value"`
 }
 
 type ConfigSessionPath struct {
@@ -25,13 +30,14 @@ type ConfigSessionPath struct {
 
 type Config struct {
 	configPath           string
-	NetboxUrl            string            `yaml:"netbox_url"`
-	NetboxToken          string            `yaml:"netbox_token"`
-	RootPath             string            `yaml:"root_path"`
-	SessionPath          ConfigSessionPath `yaml:"session_path"`
-	EnablePeriodicSync   bool              `yaml:"periodic_sync_enable"`
-	PeriodicSyncInterval *int              `yaml:"periodic_sync_interval"`
-	DefaultCredential    *string           `yaml:"default_credential"`
+	NetboxUrl            string                `yaml:"netbox_url"`
+	NetboxToken          string                `yaml:"netbox_token"`
+	RootPath             string                `yaml:"root_path"`
+	NameOverwrites       []ConfigNameOverwrite `yaml:"name_overwrites"`
+	SessionPath          ConfigSessionPath     `yaml:"session_path"`
+	EnablePeriodicSync   bool                  `yaml:"periodic_sync_enable"`
+	PeriodicSyncInterval *int                  `yaml:"periodic_sync_interval"`
+	DefaultCredential    *string               `yaml:"default_credential"`
 }
 
 func NewConfig(configPath string) (*Config, error) {

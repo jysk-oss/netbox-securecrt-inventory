@@ -125,7 +125,7 @@ func (i *InventorySync) runSync() error {
 			return err
 		}
 
-		name := device.Display
+		name := applyNameOverwrites(device.Display, i.cfg.NameOverwrites)
 		ipAddress := strings.Split(*device.PrimaryIp4.Address, "/")[0]
 		siteAddress := strings.ReplaceAll(site.PhysicalAddress, "\r\n", ", ")
 		deviceType := device.DeviceType.Display
@@ -148,7 +148,7 @@ func (i *InventorySync) runSync() error {
 			return err
 		}
 
-		name := device.Display
+		name := applyNameOverwrites(device.Display, i.cfg.NameOverwrites)
 		ipAddress := strings.Split(*device.PrimaryIp4.Address, "/")[0]
 		siteAddress := strings.ReplaceAll(site.PhysicalAddress, "\r\n", ", ")
 		deviceType := ""
