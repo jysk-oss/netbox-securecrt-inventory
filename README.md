@@ -48,4 +48,4 @@ default_credential: <username>
 ## Development
 PR's, and issues are welcome.
 
-An VSCode launch file has been included for debugging the code directly.
+A VSCode launch file has been included for debugging the code directly.
