@@ -1,4 +1,9 @@
-# Installation
+# NetBox SecureCRT Inventory
+Have you always wanted the ability to synchronize your NetBox devices to your SecureCRT client? Then this is for you!
+
+It will automatically run in the background and do a perodic synchronization, or run on-demand depending on the need. It's highly fleksible in regards to how the devices structure is made.
+
+## Installation
 1. Download the latest release zip file to your computer, and unzip it.
 2. Create a config file named .securecrt-inventory.yaml in your home directory (see below for a full config example)
    - Change default_credential, netbox_url, and netbox_token as needed
@@ -6,8 +11,9 @@
 3. Run the program. It should now start running as a systray program
 4. Optional: Set it to start automatically on windows/mac startup
 
+*Note:* On OSX you might need to do `xattr -cr securecrt-inventory` to be able to run it, this is because the binary is not signed. Alternatively, consider building the code yourself as a workaround.
 
-# Config
+## Config
 ```
 netbox_url: <netbox_url>
 netbox_token: <netbox_token>
@@ -35,6 +41,11 @@ session_path:
 periodic_sync_enable: true
 periodic_sync_interval: 120
 
-# Default credentails to use, they should be defined in SecureCRT beforehand!
+# Default credentails to use, they should be defined in SecureCRT beforehand under "Preferences -> General -> Credentials"
 default_credential: <username>
 ```
+
+## Development
+PR's, and issues are welcome.
+
+An VSCode launch file has been included for debugging the code directly.
