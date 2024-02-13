@@ -161,7 +161,9 @@ func (i *InventorySync) runSync() error {
 			siteGroup = *site.Group.Slug
 		}
 
-		err = i.writeSession("virtual_machine", site, name, ipAddress, siteAddress, deviceType, siteGroup, make(map[string]string))
+		err = i.writeSession("virtual_machine", site, name, ipAddress, siteAddress, deviceType, siteGroup, map[string]string{
+			"device_role": "Virtual Machine",
+		})
 		if err != nil {
 			return err
 		}
