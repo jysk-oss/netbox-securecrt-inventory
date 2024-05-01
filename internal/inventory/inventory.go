@@ -31,11 +31,10 @@ func New(cfg *config.Config, nb *netbox.NetBox, scrt *securecrt.SecureCRT, systr
 		periodicTicker: time.NewTicker(time.Minute * time.Duration(*cfg.PeriodicSyncInterval)),
 	}
 
-	go inv.setupPeriodicSync()
 	return &inv
 }
 
-func (i *InventorySync) setupPeriodicSync() {
+func (i *InventorySync) SetupPeriodicSync() {
 	for range i.periodicTicker.C {
 		if i.cfg.EnablePeriodicSync {
 			err := i.RunSync()

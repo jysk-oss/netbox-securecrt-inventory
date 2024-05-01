@@ -19,10 +19,18 @@ func main() {
 		panic(err)
 	}
 
+	// setup our startup status so we can report errors in the systray
+	sysTrayStatupStatus := tray.SysTrayStatus{
+		Status:  true,
+		Message: "Not synced yet",
+	}
+
 	// setup securecrt config builder, and validate it's installed
 	scrt, err := securecrt.New(cfg.DefaultCredential)
 	if err != nil {
-		panic(err)
+		sysTrayStatupStatus.Message = err.Error()
+		sysTrayStatupStatus.Status = false
+		sysTrayStatupStatus.MenusDisabled = true
 	}
 
 	// setup the systray, and all menu items
@@ -32,8 +40,10 @@ func main() {
 	nb := netbox.New(cfg.NetboxUrl, cfg.NetboxToken)
 	invClient := inventory.New(cfg, nb, scrt, systray)
 
+	// handle periodic sync if enabled
+	go invClient.SetupPeriodicSync()
+
 	// handle click events
-	// TODO: should this be move, or should the periodic sync func be moved out here?
 	go func() {
 		for menuItem := range systray.ClickedCh {
 			if menuItem == "sync" {
@@ -53,5 +63,5 @@ func main() {
 	}()
 
 	// show the systray in a blocking way
-	systray.Run()
+	systray.Run(sysTrayStatupStatus)
 }

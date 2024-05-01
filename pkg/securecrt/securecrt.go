@@ -42,7 +42,7 @@ func (scrt *SecureCRT) BuildSessionData(ip, protocol, site, address, machine_typ
 	data.WriteString(scrt.credentialValue)
 	data.WriteString(fmt.Sprintf("\nS:\"Hostname\"=%s", ip))
 	data.WriteString(fmt.Sprintf("\nS:\"Protocol Name\"=%s", protocol))
-	data.WriteString(fmt.Sprintf("\nZ:\"Description\"=00000003")) // number of lines to display
+	data.WriteString("\nZ:\"Description\"=00000003") // number of lines to display
 	data.WriteString(fmt.Sprintf("\n Site: %s", site))
 	data.WriteString(fmt.Sprintf("\n Type: %s", machine_type))
 	data.WriteString(fmt.Sprintf("\n Adresse: %s", address))
