@@ -27,7 +27,7 @@ name_overwrites:
 
 # Session Path defines where a session is saved
 # There's a default template, but it's also possible to create overwrites based on the following keys:
-# site_group, type, tenant_name, regsion_name, site_name, device_name
+# site_group, type, tenant_name, region_name, site_name, device_name
 session_path:
     template: '{tenant_name}/{region_name}/{site_name}/{device_role}'
     overwrites:
