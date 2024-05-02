@@ -1,19 +1,12 @@
 package tray
 
 import (
-	"fmt"
 	"time"
 
 	"fyne.io/systray"
 	"github.com/jysk-network/netbox-securecrt-inventory/internal/config"
 	"github.com/jysk-network/netbox-securecrt-inventory/internal/tray/assets"
 )
-
-type SysTrayStatus struct {
-	Message       string
-	Status        bool
-	MenusDisabled bool
-}
 
 type SysTray struct {
 	mStatus         *systray.MenuItem
@@ -23,7 +16,6 @@ type SysTray struct {
 	cfg             *config.Config
 	animationTicker *time.Ticker
 	ClickedCh       chan string
-	startupStatus   SysTrayStatus
 }
 
 func New(cfg *config.Config) *SysTray {
@@ -53,13 +45,8 @@ func (s *SysTray) onStartup() {
 
 	s.mQuit = systray.AddMenuItem("Quit", "Quit the whole app")
 
-	if s.startupStatus.MenusDisabled {
-		s.mSyncNow.Disable()
-		mSettings.Disable()
-	}
-
-	s.SetStatus(s.startupStatus.Status)
-	s.SetStatusMessage(fmt.Sprintf("Status: %s", s.startupStatus.Message))
+	s.SetStatus(true)
+	s.SetStatusMessage("Status: Not synced yet")
 	s.togglePeriodicSync()
 	s.handleClicks()
 }
@@ -90,8 +77,7 @@ func (s *SysTray) togglePeriodicSync() {
 	}
 }
 
-func (s *SysTray) Run(status SysTrayStatus) {
-	s.startupStatus = status
+func (s *SysTray) Run() {
 	systray.Run(s.onStartup, s.onExit)
 }
 

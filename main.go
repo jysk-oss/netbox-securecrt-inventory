@@ -6,6 +6,7 @@ import (
 	"github.com/jysk-network/netbox-securecrt-inventory/internal/netbox"
 	"github.com/jysk-network/netbox-securecrt-inventory/internal/tray"
 	"github.com/jysk-network/netbox-securecrt-inventory/pkg/securecrt"
+	"github.com/sqweek/dialog"
 )
 
 func main() {
@@ -16,21 +17,15 @@ func main() {
 
 	cfg, err := config.NewConfig(cfgPath)
 	if err != nil {
-		panic(err)
-	}
-
-	// setup our startup status so we can report errors in the systray
-	sysTrayStatupStatus := tray.SysTrayStatus{
-		Status:  true,
-		Message: "Not synced yet",
+		dialog.Message("Error: %v", err).Title("Config Error").Error()
+		return
 	}
 
 	// setup securecrt config builder, and validate it's installed
 	scrt, err := securecrt.New(cfg.DefaultCredential)
 	if err != nil {
-		sysTrayStatupStatus.Message = err.Error()
-		sysTrayStatupStatus.Status = false
-		sysTrayStatupStatus.MenusDisabled = true
+		dialog.Message("Error: %v", err).Title("Credentials Error").Error()
+		return
 	}
 
 	// setup the systray, and all menu items
@@ -63,5 +58,5 @@ func main() {
 	}()
 
 	// show the systray in a blocking way
-	systray.Run(sysTrayStatupStatus)
+	systray.Run()
 }
