@@ -12,7 +12,8 @@ import (
 func main() {
 	cfgPath, err := config.ParseFlags()
 	if err != nil {
-		panic(err)
+		dialog.Message("Error: %v", err).Title("Config Error").Error()
+		return
 	}
 
 	cfg, err := config.NewConfig(cfgPath)
