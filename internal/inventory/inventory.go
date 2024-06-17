@@ -56,12 +56,26 @@ func (i *InventorySync) getSite(sites []*models.Site, siteID int64) (*models.Sit
 	return nil, ErrorFailedToFindSite
 }
 
-func (i *InventorySync) writeSession(sessionType string, site *models.Site, name, ipAddress, siteAddress, deviceType, siteGroup string, extraVars map[string]string) error {
+func (i *InventorySync) getTenant(device interface{}) string {
+	nd, ok := device.(*models.DeviceWithConfigContext)
+	if ok && nd != nil && nd.Tenant != nil {
+		return *nd.Tenant.Name
+	}
+
+	vm, ok := device.(*models.VirtualMachineWithConfigContext)
+	if ok && vm != nil && vm.Tenant != nil {
+		return *vm.Tenant.Name
+	}
+
+	return "No Tenant"
+}
+
+func (i *InventorySync) writeSession(sessionType string, site *models.Site, tenant, name, ipAddress, siteAddress, deviceType, siteGroup string, extraVars map[string]string) error {
 	sessionData := i.scrt.BuildSessionData(ipAddress, "SSH2", *site.Name, siteAddress, deviceType)
 
 	templateVariables := map[string]string{
 		"type":        sessionType,
-		"tenant_name": *site.Tenant.Name,
+		"tenant_name": tenant,
 		"region_name": *site.Region.Name,
 		"site_name":   *site.Name,
 		"device_name": name,
@@ -125,6 +139,7 @@ func (i *InventorySync) runSync() error {
 		}
 
 		name := applyNameOverwrites(device.Display, i.cfg.NameOverwrites)
+		tenant := i.getTenant(device)
 		ipAddress := strings.Split(*device.PrimaryIp4.Address, "/")[0]
 		siteAddress := strings.ReplaceAll(site.PhysicalAddress, "\r\n", ", ")
 		deviceType := device.DeviceType.Display
@@ -133,7 +148,7 @@ func (i *InventorySync) runSync() error {
 			siteGroup = *site.Group.Slug
 		}
 
-		err = i.writeSession("device", site, name, ipAddress, siteAddress, deviceType, siteGroup, map[string]string{
+		err = i.writeSession("device", site, tenant, name, ipAddress, siteAddress, deviceType, siteGroup, map[string]string{
 			"device_role": *device.DeviceRole.Name,
 		})
 		if err != nil {
@@ -148,6 +163,7 @@ func (i *InventorySync) runSync() error {
 		}
 
 		name := applyNameOverwrites(device.Display, i.cfg.NameOverwrites)
+		tenant := i.getTenant(device)
 		ipAddress := strings.Split(*device.PrimaryIp4.Address, "/")[0]
 		siteAddress := strings.ReplaceAll(site.PhysicalAddress, "\r\n", ", ")
 		deviceType := ""
@@ -160,7 +176,7 @@ func (i *InventorySync) runSync() error {
 			siteGroup = *site.Group.Slug
 		}
 
-		err = i.writeSession("virtual_machine", site, name, ipAddress, siteAddress, deviceType, siteGroup, map[string]string{
+		err = i.writeSession("virtual_machine", site, tenant, name, ipAddress, siteAddress, deviceType, siteGroup, map[string]string{
 			"device_role": "Virtual Machine",
 		})
 		if err != nil {
