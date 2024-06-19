@@ -1,6 +1,7 @@
 package securecrt
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -59,12 +60,12 @@ func (scrt *SecureCRT) WriteSession(path string, data string) error {
 	path = fmt.Sprintf("%s/Sessions/%s", scrt.configPath, path)
 	err = os.MkdirAll(filepath.Dir(path), info.Mode())
 	if err != nil {
-		return ErrFailedToCreateSession
+		return errors.Join(ErrFailedToCreateSession, err)
 	}
 
 	err = os.WriteFile(path, []byte(data), info.Mode())
 	if err != nil {
-		return ErrFailedToCreateSession
+		return errors.Join(ErrFailedToCreateSession, err)
 	}
 
 	return nil
