@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ type InventorySync struct {
 	systray        *tray.SysTray
 	periodicTicker *time.Ticker
 	LastSync       time.Time
+	stripRe        *regexp.Regexp
 }
 
 func New(cfg *config.Config, nb *netbox.NetBox, scrt *securecrt.SecureCRT, systray *tray.SysTray) *InventorySync {
@@ -29,6 +31,7 @@ func New(cfg *config.Config, nb *netbox.NetBox, scrt *securecrt.SecureCRT, systr
 		scrt:           scrt,
 		systray:        systray,
 		periodicTicker: time.NewTicker(time.Minute * time.Duration(*cfg.PeriodicSyncInterval)),
+		stripRe:        regexp.MustCompile(`[\\/\?]`),
 	}
 
 	return &inv
@@ -94,6 +97,7 @@ func (i *InventorySync) writeSession(sessionType string, site *models.Site, tena
 		templateVariables,
 	)
 
+	name = i.stripRe.ReplaceAllString(name, "")
 	sessionPath := templater.ApplyTemplate(fmt.Sprintf("%s/%s/%s.ini", i.cfg.RootPath, template, name), templateVariables)
 	err := i.scrt.WriteSession(sessionPath, sessionData)
 	if err != nil {
