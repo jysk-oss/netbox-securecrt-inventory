@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"net/url"
@@ -12,10 +13,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type ConfigTemplateOverwrite struct {
-	Key      string `yaml:"key"`
-	Value    string `yaml:"value"`
-	Template string `yaml:"template"`
+type ConfigSessionOverride struct {
+	Target    string `yaml:"target"`
+	Condition string `yaml:"condition"`
+	Value     string `yaml:"value"`
 }
 
 type ConfigNameOverwrite struct {
@@ -23,56 +24,96 @@ type ConfigNameOverwrite struct {
 	Value string `yaml:"value"`
 }
 
-type ConfigSessionPath struct {
-	Template   string                    `yaml:"template"`
-	Overwrites []ConfigTemplateOverwrite `yaml:"overwrites"`
+type ConfigSessionOptions struct {
+	ConnectionProtocol string  `yaml:"connection_protocol"`
+	Credential         *string `yaml:"credential"`
+	Firewall           *string `yaml:"firewall"`
+}
+
+type ConfigSession struct {
+	Path           string                  `yaml:"path"`
+	DeviceName     string                  `yaml:"device_name"`
+	SessionOptions ConfigSessionOptions    `yaml:"session_options"`
+	Overrides      []ConfigSessionOverride `yaml:"overrides"`
 }
 
 type Config struct {
 	configPath           string
-	NetboxUrl            string                `yaml:"netbox_url"`
-	NetboxToken          string                `yaml:"netbox_token"`
-	RootPath             string                `yaml:"root_path"`
-	NameOverwrites       []ConfigNameOverwrite `yaml:"name_overwrites"`
-	SessionPath          ConfigSessionPath     `yaml:"session_path"`
-	EnablePeriodicSync   bool                  `yaml:"periodic_sync_enable"`
-	PeriodicSyncInterval *int                  `yaml:"periodic_sync_interval"`
-	DefaultCredential    *string               `yaml:"default_credential"`
+	LogLevel             string        `yaml:"log_level"`
+	NetboxUrl            string        `yaml:"netbox_url"`
+	NetboxToken          string        `yaml:"netbox_token"`
+	RootPath             string        `yaml:"root_path"`
+	Session              ConfigSession `yaml:"session"`
+	EnablePeriodicSync   bool          `yaml:"periodic_sync_enable"`
+	PeriodicSyncInterval *int          `yaml:"periodic_sync_interval"`
 }
 
 func NewConfig(configPath string) (*Config, error) {
-	// Create config structure
-	config := &Config{}
+	config := &Config{
+		configPath: configPath,
+	}
 
-	// Open config file
 	file, err := os.Open(configPath)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	// Init new YAML decode
 	d := yaml.NewDecoder(file)
-
-	// Start YAML decoding from file
 	if err := d.Decode(&config); err != nil {
 		return nil, err
 	}
 
-	if config.PeriodicSyncInterval == nil {
-		defaultTime := 60
-		config.PeriodicSyncInterval = &defaultTime
-	}
-
-	// validate the netbox url, and allows us to strip http/https etc
-	url, err := parseRawURL(config.NetboxUrl)
+	err = config.SetDefaultsAndValidate()
 	if err != nil {
 		return nil, err
 	}
 
-	config.NetboxUrl = url.Host
-	config.configPath = configPath
 	return config, nil
+}
+
+func (c *Config) SetDefaultsAndValidate() error {
+	// setup defaults
+	if c.LogLevel == "" {
+		c.LogLevel = "ERROR"
+	}
+
+	if c.PeriodicSyncInterval == nil {
+		defaultTime := 60
+		c.PeriodicSyncInterval = &defaultTime
+	}
+
+	if c.Session.SessionOptions.ConnectionProtocol == "" {
+		c.Session.SessionOptions.ConnectionProtocol = "SSH"
+	}
+
+	if c.Session.DeviceName == "" {
+		c.Session.DeviceName = "{device_name}"
+	}
+
+	if c.Session.Path == "" {
+		c.Session.Path = "{tenant_name}/{region_name}/{site_name}/{device_role}"
+	}
+
+	// validate overrides
+	for _, override := range c.Session.Overrides {
+		if override.Target == "" {
+			return errors.New("override target can not be empty")
+		}
+
+		if override.Condition == "" {
+			return errors.New("override condition can not be empty")
+		}
+	}
+
+	// validate the netbox url, and allows us to strip http/https etc
+	url, err := parseRawURL(c.NetboxUrl)
+	if err != nil {
+		return err
+	}
+
+	c.NetboxUrl = url.Host
+	return nil
 }
 
 func (c *Config) Save() error {
