@@ -69,6 +69,7 @@ func NewConfig(configPath string) (*Config, error) {
 		return nil, err
 	}
 
+	config.Save()
 	return config, nil
 }
 
@@ -130,19 +131,6 @@ func (c *Config) Save() error {
 	return nil
 }
 
-// ValidateConfigPath just makes sure, that the path provided is a file,
-// that can be read
-func ValidateConfigPath(path string) error {
-	s, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-	if s.IsDir() {
-		return fmt.Errorf("'%s' is a directory, not a normal file", path)
-	}
-	return nil
-}
-
 func ParseFlags() (string, error) {
 	// String that contains the configured configuration path
 	var configPath string
@@ -166,9 +154,16 @@ func ParseFlags() (string, error) {
 	// Actually parse the flags
 	flag.Parse()
 
-	// Validate the path first
-	if err := ValidateConfigPath(configPath); err != nil {
-		return "", err
+	// Validate the path first, and if empty create the config file
+	s, err := os.Stat(configPath)
+	if err != nil {
+		_, err = os.Create(configPath)
+		if err != nil {
+			return "", err
+		}
+	}
+	if s.IsDir() {
+		return "", fmt.Errorf("'%s' is a directory, not a normal file", configPath)
 	}
 
 	// Return the configuration path
