@@ -1,6 +1,7 @@
 package tray
 
 import (
+	"log/slog"
 	"time"
 
 	"fyne.io/systray"
@@ -12,6 +13,7 @@ type SysTray struct {
 	mStatus         *systray.MenuItem
 	mSyncNow        *systray.MenuItem
 	mQuit           *systray.MenuItem
+	mLogOpen        *systray.MenuItem
 	mPeriodicSync   *systray.MenuItem
 	cfg             *config.Config
 	animationTicker *time.Ticker
@@ -38,10 +40,12 @@ func (s *SysTray) onStartup() {
 	systray.AddSeparator()
 
 	s.mSyncNow = systray.AddMenuItem("Sync Inventory Now", "Start a manual sync now")
+	s.mLogOpen = systray.AddMenuItem("Open Log", "Open log file")
 
 	systray.AddSeparator()
 	mSettings := systray.AddMenuItem("Settings", "View Settings")
 	s.mPeriodicSync = mSettings.AddSubMenuItemCheckbox("Periodic Sync", "Toggle periodic sync on/off", s.cfg.EnablePeriodicSync)
+	systray.AddSeparator()
 
 	s.mQuit = systray.AddMenuItem("Quit", "Quit the whole app")
 
@@ -58,6 +62,8 @@ func (s *SysTray) handleClicks() {
 			s.ClickedCh <- "quit"
 		case <-s.mSyncNow.ClickedCh:
 			s.ClickedCh <- "sync"
+		case <-s.mLogOpen.ClickedCh:
+			s.ClickedCh <- "open-log"
 		case <-s.mPeriodicSync.ClickedCh:
 			s.ClickedCh <- "periodic-sync"
 			s.cfg.EnablePeriodicSync = !s.cfg.EnablePeriodicSync
@@ -68,6 +74,8 @@ func (s *SysTray) handleClicks() {
 }
 
 func (s *SysTray) togglePeriodicSync() {
+	slog.Info("Periodic sync changed", slog.Bool("value", s.cfg.EnablePeriodicSync))
+
 	if s.cfg.EnablePeriodicSync {
 		s.mPeriodicSync.SetTitle("Periodic Sync: Enabled")
 		s.mPeriodicSync.Check()
@@ -90,6 +98,10 @@ func (s *SysTray) Quit() {
 }
 
 func (s *SysTray) StartAnimateIcon() {
+	if s.animationTicker != nil {
+		return
+	}
+
 	imageCount := 6
 	currentFrame := 0
 	s.animationTicker = time.NewTicker(time.Second / 5)

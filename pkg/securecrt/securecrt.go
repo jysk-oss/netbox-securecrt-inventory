@@ -3,18 +3,28 @@ package securecrt
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
-type SecureCRT struct {
-	credentialValue string
-	configPath      string
-	defaultConfig   string
+type SecureCRTSession struct {
+	DeviceName     string
+	Path           string
+	IP             string
+	Protocol       string
+	Description    string
+	CredentialName *string
+	Firewall       *string
 }
 
-func New(credentialName *string) (*SecureCRT, error) {
+type SecureCRT struct {
+	configPath    string
+	defaultConfig string
+}
+
+func New() (*SecureCRT, error) {
 	configPath, err := getConfigPath()
 	if err != nil {
 		return nil, err
@@ -25,46 +35,49 @@ func New(credentialName *string) (*SecureCRT, error) {
 		return nil, err
 	}
 
-	credentialValue, err := getCredentialHash(configPath, credentialName)
-	if err != nil {
-		return nil, err
-	}
-
 	return &SecureCRT{
-		configPath:      configPath,
-		defaultConfig:   defaultConfig,
-		credentialValue: credentialValue,
+		configPath:    configPath,
+		defaultConfig: defaultConfig,
 	}, nil
 }
 
-func (scrt *SecureCRT) BuildSessionData(ip, protocol, site, address, machine_type string) string {
+func (scrt *SecureCRT) BuildSessionData(session *SecureCRTSession) (string, error) {
+	firewallValue := getFirewall(session.Firewall)
+	credentialValue, err := getCredentialHash(scrt.configPath, session.CredentialName)
+	if err != nil {
+		slog.Error("Failed to load securecrt credential", slog.String("error", err.Error()))
+		return "", err
+	}
+
 	var data strings.Builder
 	data.WriteString(scrt.defaultConfig)
-	data.WriteString(scrt.credentialValue)
-	data.WriteString(fmt.Sprintf("\nS:\"Hostname\"=%s", ip))
-	data.WriteString(fmt.Sprintf("\nS:\"Protocol Name\"=%s", protocol))
+	data.WriteString(firewallValue)
+	data.WriteString(credentialValue)
+	data.WriteString(fmt.Sprintf("\nS:\"Hostname\"=%s", session.IP))
+	data.WriteString(fmt.Sprintf("\nS:\"Protocol Name\"=%s", session.Protocol))
 	data.WriteString("\nZ:\"Description\"=00000003") // number of lines to display
-	data.WriteString(fmt.Sprintf("\n Site: %s", site))
-	data.WriteString(fmt.Sprintf("\n Type: %s", machine_type))
-	data.WriteString(fmt.Sprintf("\n Adresse: %s", address))
+	data.WriteString(session.Description)
 
-	return data.String()
+	return data.String(), nil
 }
 
 func (scrt *SecureCRT) WriteSession(path string, data string) error {
 	info, err := os.Stat(scrt.configPath)
 	if err != nil {
+		slog.Error("Failed to load securecrt session file", slog.String("error", err.Error()))
 		return err
 	}
 
 	path = fmt.Sprintf("%s/Sessions/%s", scrt.configPath, path)
 	err = os.MkdirAll(filepath.Dir(path), info.Mode())
 	if err != nil {
+		slog.Error("Failed to create securecrt session directory", slog.String("error", err.Error()))
 		return errors.Join(ErrFailedToCreateSession, err)
 	}
 
 	err = os.WriteFile(path, []byte(data), info.Mode())
 	if err != nil {
+		slog.Error("Failed to write securecrt session", slog.String("error", err.Error()))
 		return errors.Join(ErrFailedToCreateSession, err)
 	}
 

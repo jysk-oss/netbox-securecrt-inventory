@@ -8,45 +8,38 @@ import (
 
 	"github.com/jysk-network/netbox-securecrt-inventory/internal/config"
 	"github.com/jysk-network/netbox-securecrt-inventory/internal/netbox"
-	"github.com/jysk-network/netbox-securecrt-inventory/internal/tray"
 	"github.com/jysk-network/netbox-securecrt-inventory/pkg/securecrt"
-	"github.com/jysk-network/netbox-securecrt-inventory/pkg/templater"
 	"github.com/netbox-community/go-netbox/v3/netbox/models"
 )
 
+const (
+	STATE_RUNNING = "running"
+	STATE_DONE    = "done"
+	STATE_ERROR   = "error"
+)
+
 type InventorySync struct {
-	cfg            *config.Config
-	nb             *netbox.NetBox
-	scrt           *securecrt.SecureCRT
-	systray        *tray.SysTray
-	periodicTicker *time.Ticker
-	LastSync       time.Time
-	stripRe        *regexp.Regexp
+	cfg              *config.Config
+	nb               *netbox.NetBox
+	scrt             *securecrt.SecureCRT
+	syncCallback     func(state string, message string)
+	periodicTicker   *time.Ticker
+	stripRe          *regexp.Regexp
+	sessionGenerator *SessionGenerator
 }
 
-func New(cfg *config.Config, nb *netbox.NetBox, scrt *securecrt.SecureCRT, systray *tray.SysTray) *InventorySync {
+func New(cfg *config.Config, nb *netbox.NetBox, scrt *securecrt.SecureCRT, syncCallback func(state string, message string)) *InventorySync {
 	inv := InventorySync{
-		cfg:            cfg,
-		nb:             nb,
-		scrt:           scrt,
-		systray:        systray,
-		periodicTicker: time.NewTicker(time.Minute * time.Duration(*cfg.PeriodicSyncInterval)),
-		stripRe:        regexp.MustCompile(`[\\/\?]`),
+		cfg:              cfg,
+		nb:               nb,
+		scrt:             scrt,
+		syncCallback:     syncCallback,
+		periodicTicker:   time.NewTicker(time.Minute * time.Duration(*cfg.PeriodicSyncInterval)),
+		stripRe:          regexp.MustCompile(`[\\/\?]`),
+		sessionGenerator: NewSessionGenerator(),
 	}
 
 	return &inv
-}
-
-func (i *InventorySync) SetupPeriodicSync() {
-	for range i.periodicTicker.C {
-		if i.cfg.EnablePeriodicSync {
-			err := i.RunSync()
-			if err != nil {
-				i.systray.SetStatus(false)
-				i.systray.SetStatusMessage(err.Error())
-			}
-		}
-	}
 }
 
 func (i *InventorySync) getSite(sites []*models.Site, siteID int64) (*models.Site, error) {
@@ -73,33 +66,14 @@ func (i *InventorySync) getTenant(device interface{}) string {
 	return "No Tenant"
 }
 
-func (i *InventorySync) writeSession(sessionType string, site *models.Site, tenant, name, ipAddress, siteAddress, deviceType, siteGroup string, extraVars map[string]string) error {
-	sessionData := i.scrt.BuildSessionData(ipAddress, "SSH2", *site.Name, siteAddress, deviceType)
-
-	templateVariables := map[string]string{
-		"type":        sessionType,
-		"tenant_name": tenant,
-		"region_name": *site.Region.Name,
-		"site_name":   *site.Name,
-		"device_name": name,
-		"site_group":  siteGroup,
+func (i *InventorySync) writeSession(session *securecrt.SecureCRTSession) error {
+	sessionData, err := i.scrt.BuildSessionData(session)
+	if err != nil {
+		return err
 	}
 
-	if len(extraVars) > 0 {
-		for k, v := range extraVars {
-			templateVariables[k] = v
-		}
-	}
-
-	template := templater.GetTemplate(
-		i.cfg.SessionPath.Template,
-		i.cfg.SessionPath.Overwrites,
-		templateVariables,
-	)
-
-	name = i.stripRe.ReplaceAllString(name, "")
-	sessionPath := templater.ApplyTemplate(fmt.Sprintf("%s/%s/%s.ini", i.cfg.RootPath, template, name), templateVariables)
-	err := i.scrt.WriteSession(sessionPath, sessionData)
+	path := fmt.Sprintf("%s/%s/%s.ini", i.cfg.RootPath, session.Path, session.DeviceName)
+	err = i.scrt.WriteSession(path, sessionData)
 	if err != nil {
 		return err
 	}
@@ -107,42 +81,24 @@ func (i *InventorySync) writeSession(sessionType string, site *models.Site, tena
 	return nil
 }
 
-func (i *InventorySync) runSync() error {
-	err := i.nb.TestConnection()
-	if err != nil {
-		return err
+func (i *InventorySync) getCommonEnvironment(sync_type string) map[string]interface{} {
+	return map[string]interface{}{
+		"type":                         sync_type,
+		"credential":                   i.cfg.Session.SessionOptions.Credential,
+		"path_template":                i.cfg.Session.Path,
+		"device_name_template":         i.cfg.Session.DeviceName,
+		"firewall_template":            i.cfg.Session.SessionOptions.Firewall,
+		"connection_protocol_template": i.cfg.Session.SessionOptions.ConnectionProtocol,
 	}
+}
 
-	i.LastSync = time.Now()
-	i.systray.SetStatusMessage("Running: Getting sites")
-	sites, err := i.nb.GetSites()
-	if err != nil {
-		return err
-	}
-
-	i.systray.SetStatusMessage("Running: Getting devices")
-	devices, err := i.nb.GetDevices()
-	if err != nil {
-		return err
-	}
-
-	i.systray.SetStatusMessage("Running: Getting Virtual Machines")
-	vms, err := i.nb.GetVirtualMachines()
-	if err != nil {
-		return err
-	}
-
-	i.systray.SetStatusMessage("Running: Removing old sessions")
-	i.scrt.RemoveSessions(i.cfg.RootPath)
-
-	i.systray.SetStatusMessage("Running: Writing sessions")
+func (i *InventorySync) syncDevices(devices []*models.DeviceWithConfigContext, sites []*models.Site) error {
 	for _, device := range devices {
 		site, err := i.getSite(sites, device.Site.ID)
 		if err != nil {
 			return err
 		}
 
-		name := applyNameOverwrites(device.Display, i.cfg.NameOverwrites)
 		tenant := i.getTenant(device)
 		ipAddress := strings.Split(*device.PrimaryIp4.Address, "/")[0]
 		siteAddress := strings.ReplaceAll(site.PhysicalAddress, "\r\n", ", ")
@@ -152,21 +108,41 @@ func (i *InventorySync) runSync() error {
 			siteGroup = *site.Group.Slug
 		}
 
-		err = i.writeSession("device", site, tenant, name, ipAddress, siteAddress, deviceType, siteGroup, map[string]string{
-			"device_role": *device.DeviceRole.Name,
+		env := mergeMaps(i.getCommonEnvironment("device"), map[string]interface{}{
+			"device":       device,
+			"device_name":  device.Display,
+			"device_role":  *device.DeviceRole.Name,
+			"device_type":  deviceType,
+			"device_ip":    ipAddress,
+			"region_name":  *site.Region.Name,
+			"tenant_name":  tenant,
+			"site":         site,
+			"site_name":    site.Display,
+			"site_group":   siteGroup,
+			"site_address": siteAddress,
 		})
+
+		session, err := i.sessionGenerator.GenerateSession(i.cfg.Session.Overrides, env)
+		if err != nil {
+			return err
+		}
+
+		err = i.writeSession(session)
 		if err != nil {
 			return err
 		}
 	}
 
-	for _, device := range vms {
+	return nil
+}
+
+func (i *InventorySync) syncVirtualMachines(devices []*models.VirtualMachineWithConfigContext, sites []*models.Site) error {
+	for _, device := range devices {
 		site, err := i.getSite(sites, device.Site.ID)
 		if err != nil {
 			return err
 		}
 
-		name := applyNameOverwrites(device.Display, i.cfg.NameOverwrites)
 		tenant := i.getTenant(device)
 		ipAddress := strings.Split(*device.PrimaryIp4.Address, "/")[0]
 		siteAddress := strings.ReplaceAll(site.PhysicalAddress, "\r\n", ", ")
@@ -180,24 +156,99 @@ func (i *InventorySync) runSync() error {
 			siteGroup = *site.Group.Slug
 		}
 
-		err = i.writeSession("virtual_machine", site, tenant, name, ipAddress, siteAddress, deviceType, siteGroup, map[string]string{
-			"device_role": "Virtual Machine",
+		env := mergeMaps(i.getCommonEnvironment("virtual_machine"), map[string]interface{}{
+			"device":       device,
+			"device_name":  device.Display,
+			"device_role":  "Virtual Machine",
+			"device_type":  deviceType,
+			"device_ip":    ipAddress,
+			"region_name":  *site.Region.Name,
+			"tenant_name":  tenant,
+			"site":         site,
+			"site_name":    site.Display,
+			"site_group":   siteGroup,
+			"site_address": siteAddress,
 		})
+
+		session, err := i.sessionGenerator.GenerateSession(i.cfg.Session.Overrides, env)
+		if err != nil {
+			return err
+		}
+
+		err = i.writeSession(session)
 		if err != nil {
 			return err
 		}
 	}
 
-	i.systray.SetStatus(true)
-	i.systray.SetStatusMessage(fmt.Sprintf("Status: Last sync @ %s", i.LastSync.Format("15:04")))
 	return nil
 }
 
-func (i *InventorySync) RunSync() error {
-	i.systray.SetSyncButtonStatus(false)
-	i.systray.StartAnimateIcon()
+func (i *InventorySync) runSync() error {
+	err := i.nb.TestConnection()
+	if err != nil {
+		return err
+	}
+
+	i.syncCallback(STATE_RUNNING, "Running: Getting sites")
+	sites, err := i.nb.GetSites()
+	if err != nil {
+		return err
+	}
+
+	i.syncCallback(STATE_RUNNING, "Running: Getting devices")
+	devices, err := i.nb.GetDevices()
+	if err != nil {
+		return err
+	}
+
+	i.syncCallback(STATE_RUNNING, "Running: Getting Virtual Machines")
+	vms, err := i.nb.GetVirtualMachines()
+	if err != nil {
+		return err
+	}
+
+	i.syncCallback(STATE_RUNNING, "Running: Removing old sessions")
+	i.scrt.RemoveSessions(i.cfg.RootPath)
+
+	i.syncCallback(STATE_RUNNING, "Running: Writing sessions")
+	err = i.syncDevices(devices, sites)
+	if err != nil {
+		return err
+	}
+
+	err = i.syncVirtualMachines(vms, sites)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (i *InventorySync) RunSync() {
+	lastSync := time.Now()
 	err := i.runSync()
-	i.systray.SetSyncButtonStatus(true)
-	i.systray.StopAnimateIcon()
-	return err
+	if err != nil {
+		i.syncCallback(STATE_ERROR, err.Error())
+	} else {
+		i.syncCallback(STATE_DONE, fmt.Sprintf("Status: Last sync @ %s", lastSync.Format("15:04")))
+	}
+}
+
+func (i *InventorySync) SetupPeriodicSync() {
+	for range i.periodicTicker.C {
+		if i.cfg.EnablePeriodicSync {
+			i.RunSync()
+		}
+	}
+}
+
+func mergeMaps(maps ...map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{})
+	for _, m := range maps {
+		for k, v := range m {
+			result[k] = v
+		}
+	}
+	return result
 }

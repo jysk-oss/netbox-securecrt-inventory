@@ -32,7 +32,7 @@ func loadDefaultSessionConfig(configPath string) (string, error) {
 
 func getCredentialHash(configPath string, credentialName *string) (string, error) {
 	if credentialName == nil {
-		return "D:\"Session Password Saved\"=00000000", nil
+		return "\nD:\"Session Password Saved\"=00000000", nil
 	}
 
 	paths, err := os.ReadDir(fmt.Sprintf("%s/Credentials", configPath))
@@ -46,8 +46,16 @@ func getCredentialHash(configPath string, credentialName *string) (string, error
 		}
 
 		file := strings.ReplaceAll(path.Name(), ".ini", "")
-		return fmt.Sprintf("S:\"Credential Title\"=%s", file), nil
+		return fmt.Sprintf("\nS:\"Credential Title\"=%s", file), nil
 	}
 
 	return "", ErrFailedToLoadCredentials
+}
+
+func getFirewall(firewall *string) string {
+	if firewall == nil || strings.ToLower(*firewall) == "none" {
+		return "S:\"Firewall Name\"=None"
+	}
+
+	return fmt.Sprintf("S:\"Firewall Name\"=Session:%s", *firewall)
 }

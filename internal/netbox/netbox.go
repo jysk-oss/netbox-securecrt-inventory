@@ -1,8 +1,8 @@
 package netbox
 
 import (
-	"errors"
 	"fmt"
+	"log/slog"
 
 	nbc "github.com/netbox-community/go-netbox/v3/netbox"
 	"github.com/netbox-community/go-netbox/v3/netbox/client"
@@ -34,8 +34,10 @@ func New(url string, token string) *NetBox {
 func (nb *NetBox) TestConnection() error {
 	_, err := nb.client.Status.StatusList(status.NewStatusListParams(), nil)
 	if err != nil {
-		return errors.New(fmt.Sprintf("Unable to connect: %s", nb.url))
+		slog.Error("Unable to connect to netbox", slog.String("url", nb.url), slog.String("error", err.Error()))
+		return fmt.Errorf("unable to connect: %s", nb.url)
 	}
+
 	return nil
 }
 
@@ -47,6 +49,7 @@ func (nb *NetBox) GetSites() ([]*models.Site, error) {
 		query := dcim.NewDcimSitesListParams().WithLimit(&nb.limit).WithOffset(&currentCount)
 		response, err := nb.client.Dcim.DcimSitesList(query, nil)
 		if err != nil {
+			slog.Error("Failed to get sites from netbox", slog.String("error", err.Error()))
 			return nil, ErrFailedToQuerySites
 		}
 
@@ -56,6 +59,7 @@ func (nb *NetBox) GetSites() ([]*models.Site, error) {
 		}
 	}
 
+	slog.Info("Retrived sites", slog.Int("count", len(results)))
 	return results, nil
 }
 
@@ -70,6 +74,7 @@ func (nb *NetBox) GetDevices() ([]*models.DeviceWithConfigContext, error) {
 
 		response, err := nb.client.Dcim.DcimDevicesList(query, nil)
 		if err != nil {
+			slog.Error("Failed to get devices from netbox", slog.String("error", err.Error()))
 			return nil, ErrFailedToQueryDevices
 		}
 		results = append(results, response.Payload.Results...)
@@ -78,6 +83,7 @@ func (nb *NetBox) GetDevices() ([]*models.DeviceWithConfigContext, error) {
 		}
 	}
 
+	slog.Info("Retrived devices", slog.Int("count", len(results)))
 	return results, nil
 }
 
@@ -92,6 +98,7 @@ func (nb *NetBox) GetVirtualMachines() ([]*models.VirtualMachineWithConfigContex
 
 		response, err := nb.client.Virtualization.VirtualizationVirtualMachinesList(query, nil)
 		if err != nil {
+			slog.Error("Failed to get virtual machines from netbox", slog.String("error", err.Error()))
 			return nil, ErrFailedToQueryDevices
 		}
 		results = append(results, response.Payload.Results...)
@@ -100,5 +107,6 @@ func (nb *NetBox) GetVirtualMachines() ([]*models.VirtualMachineWithConfigContex
 		}
 	}
 
+	slog.Info("Retrived virtual machines", slog.Int("count", len(results)))
 	return results, nil
 }
