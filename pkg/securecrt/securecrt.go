@@ -3,34 +3,31 @@ package securecrt
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
-)
+	"sync"
 
-type SecureCRTSession struct {
-	DeviceName     string
-	Path           string
-	IP             string
-	Protocol       string
-	Description    string
-	CredentialName *string
-	Firewall       *string
-}
+	"golang.org/x/sync/errgroup"
+)
 
 type SecureCRT struct {
 	configPath    string
 	defaultConfig string
+	rootPath      string
+	sessionPath   string
 }
 
-func New() (*SecureCRT, error) {
+func New(rootPath string) (*SecureCRT, error) {
 	configPath, err := getConfigPath()
 	if err != nil {
 		return nil, err
 	}
 
-	defaultConfig, err := loadDefaultSessionConfig(configPath)
+	defaultConfig, err := loadDefaultSessionConfig(fmt.Sprintf("%s/Sessions", configPath))
 	if err != nil {
 		return nil, err
 	}
@@ -38,53 +35,87 @@ func New() (*SecureCRT, error) {
 	return &SecureCRT{
 		configPath:    configPath,
 		defaultConfig: defaultConfig,
+		rootPath:      rootPath,
+		sessionPath:   fmt.Sprintf("%s/Sessions/%s", configPath, rootPath),
 	}, nil
 }
 
-func (scrt *SecureCRT) BuildSessionData(session *SecureCRTSession) (string, error) {
-	firewallValue := getFirewall(session.Firewall)
-	credentialValue, err := getCredentialHash(scrt.configPath, session.CredentialName)
+func (scrt *SecureCRT) GetSessions() ([]*SecureCRTSession, error) {
+	var mu sync.Mutex
+	var eg errgroup.Group
+	var sessions []*SecureCRTSession
+	err := filepath.WalkDir(scrt.sessionPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".ini") {
+			return err
+		}
+
+		fileName := strings.ReplaceAll(d.Name(), ".ini", "")
+		if strings.HasPrefix(fileName, "__") && strings.HasSuffix(fileName, "__") {
+			return nil
+		}
+
+		eg.Go(func() error {
+			session := NewSession(path)
+			err = session.read()
+			if err != nil {
+				return err
+			}
+
+			mu.Lock()
+			sessions = append(sessions, session)
+			mu.Unlock()
+			return nil
+		})
+
+		return nil
+	})
+
 	if err != nil {
-		slog.Error("Failed to load securecrt credential", slog.String("error", err.Error()))
-		return "", err
+		return nil, ErrFailedToReadSession
 	}
 
-	var data strings.Builder
-	data.WriteString(scrt.defaultConfig)
-	data.WriteString(firewallValue)
-	data.WriteString(credentialValue)
-	data.WriteString(fmt.Sprintf("\nS:\"Hostname\"=%s", session.IP))
-	data.WriteString(fmt.Sprintf("\nS:\"Protocol Name\"=%s", session.Protocol))
-	data.WriteString("\nZ:\"Description\"=00000003") // number of lines to display
-	data.WriteString(session.Description)
-
-	return data.String(), nil
+	err = eg.Wait()
+	return sessions, err
 }
 
-func (scrt *SecureCRT) WriteSession(path string, data string) error {
+func (scrt *SecureCRT) RemoveSessions(sessions []*SecureCRTSession) error {
+	currentSessions, err := scrt.GetSessions()
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < len(currentSessions); i++ {
+		found := slices.ContainsFunc(sessions, func(e *SecureCRTSession) bool {
+			return currentSessions[i].DeviceName == e.DeviceName
+		})
+
+		if !found {
+			err = currentSessions[i].delete()
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return err
+}
+
+func (scrt *SecureCRT) GetSessionPath() string {
+	return scrt.sessionPath
+}
+
+func (scrt *SecureCRT) WriteSession(session *SecureCRTSession) error {
 	info, err := os.Stat(scrt.configPath)
 	if err != nil {
 		slog.Error("Failed to load securecrt session file", slog.String("error", err.Error()))
 		return err
 	}
 
-	path = fmt.Sprintf("%s/Sessions/%s", scrt.configPath, path)
-	err = os.MkdirAll(filepath.Dir(path), info.Mode())
-	if err != nil {
-		slog.Error("Failed to create securecrt session directory", slog.String("error", err.Error()))
-		return errors.Join(ErrFailedToCreateSession, err)
-	}
-
-	err = os.WriteFile(path, []byte(data), info.Mode())
+	err = session.write(scrt.defaultConfig, info.Mode())
 	if err != nil {
 		slog.Error("Failed to write securecrt session", slog.String("error", err.Error()))
 		return errors.Join(ErrFailedToCreateSession, err)
 	}
 
 	return nil
-}
-
-func (scrt *SecureCRT) RemoveSessions(path string) error {
-	path = fmt.Sprintf("%s/Sessions/%s", scrt.configPath, path)
-	return os.RemoveAll(path)
 }

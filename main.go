@@ -9,9 +9,9 @@ import (
 	"runtime"
 
 	"github.com/jysk-network/netbox-securecrt-inventory/internal/config"
+	"github.com/jysk-network/netbox-securecrt-inventory/internal/gui"
 	"github.com/jysk-network/netbox-securecrt-inventory/internal/inventory"
 	"github.com/jysk-network/netbox-securecrt-inventory/internal/netbox"
-	"github.com/jysk-network/netbox-securecrt-inventory/internal/tray"
 	"github.com/jysk-network/netbox-securecrt-inventory/pkg/securecrt"
 	"github.com/sqweek/dialog"
 )
@@ -44,7 +44,7 @@ func main() {
 		return
 	}
 
-	file, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0755)
+	file, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
 	if err != nil {
 		dialog.Message("Error: %v", err).Title("Logging Setup Error").Error()
 		return
@@ -61,7 +61,7 @@ func main() {
 	slog.SetDefault(logger)
 
 	// setup securecrt config builder, and validate it's installed
-	scrt, err := securecrt.New()
+	scrt, err := securecrt.New(cfg.RootPath)
 	if err != nil {
 		slog.Error("Failed to load securecrt config", slog.String("error", err.Error()))
 		dialog.Message("Error: %v", err).Title("Config Error").Error()
@@ -69,7 +69,7 @@ func main() {
 	}
 
 	// setup the systray, and all menu items
-	systray := tray.New(cfg)
+	systray := gui.New(cfg)
 	syncCallback := func(state string, message string) {
 		if state == inventory.STATE_RUNNING {
 			systray.SetSyncButtonStatus(false)

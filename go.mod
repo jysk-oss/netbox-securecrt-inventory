@@ -4,8 +4,10 @@ go 1.21.1
 
 require (
 	fyne.io/systray v1.10.0
+	github.com/expr-lang/expr v1.16.9
 	github.com/netbox-community/go-netbox/v3 v3.4.5
 	github.com/sqweek/dialog v0.0.0-20240226140203-065105509627
+	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -14,7 +16,6 @@ require (
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/TheTitanrain/w32 v0.0.0-20180517000239-4f5cfb03fabf // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
-	github.com/expr-lang/expr v1.16.9 // indirect
 	github.com/go-openapi/analysis v0.21.2 // indirect
 	github.com/go-openapi/errors v0.20.2 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
