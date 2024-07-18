@@ -44,6 +44,8 @@ func (scrt *SecureCRT) GetSessions() ([]*SecureCRTSession, error) {
 	var mu sync.Mutex
 	var eg errgroup.Group
 	var sessions []*SecureCRTSession
+
+	eg.SetLimit(50)
 	err := filepath.WalkDir(scrt.sessionPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".ini") {
 			return err

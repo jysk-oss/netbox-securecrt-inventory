@@ -7,7 +7,7 @@ require (
 	github.com/expr-lang/expr v1.16.9
 	github.com/netbox-community/go-netbox/v3 v3.4.5
 	github.com/sqweek/dialog v0.0.0-20240226140203-065105509627
-	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
+	golang.org/x/sync v0.7.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
