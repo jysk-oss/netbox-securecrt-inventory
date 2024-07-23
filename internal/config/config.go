@@ -25,9 +25,9 @@ type ConfigNameOverwrite struct {
 }
 
 type ConfigSessionOptions struct {
-	ConnectionProtocol string  `yaml:"connection_protocol"`
-	Credential         *string `yaml:"credential"`
-	Firewall           *string `yaml:"firewall"`
+	ConnectionProtocol string `yaml:"connection_protocol"`
+	Credential         string `yaml:"credential"`
+	Firewall           string `yaml:"firewall"`
 }
 
 type ConfigSession struct {
@@ -86,6 +86,10 @@ func (c *Config) SetDefaultsAndValidate() error {
 
 	if c.Session.SessionOptions.ConnectionProtocol == "" {
 		c.Session.SessionOptions.ConnectionProtocol = "SSH"
+	}
+
+	if c.Session.SessionOptions.Firewall == "" {
+		c.Session.SessionOptions.Firewall = "None"
 	}
 
 	if c.Session.DeviceName == "" {

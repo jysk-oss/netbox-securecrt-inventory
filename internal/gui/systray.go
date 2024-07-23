@@ -1,4 +1,4 @@
-package tray
+package gui
 
 import (
 	"log/slog"
@@ -6,7 +6,7 @@ import (
 
 	"fyne.io/systray"
 	"github.com/jysk-network/netbox-securecrt-inventory/internal/config"
-	"github.com/jysk-network/netbox-securecrt-inventory/internal/tray/assets"
+	"github.com/jysk-network/netbox-securecrt-inventory/internal/gui/assets"
 )
 
 type SysTray struct {
@@ -22,8 +22,9 @@ type SysTray struct {
 
 func New(cfg *config.Config) *SysTray {
 	return &SysTray{
-		ClickedCh: make(chan string),
-		cfg:       cfg,
+		ClickedCh:       make(chan string),
+		cfg:             cfg,
+		animationTicker: time.NewTicker(time.Second / 5),
 	}
 }
 
@@ -48,6 +49,9 @@ func (s *SysTray) onStartup() {
 	systray.AddSeparator()
 
 	s.mQuit = systray.AddMenuItem("Quit", "Quit the whole app")
+
+	s.StopAnimateIcon()
+	go s.setupIconSpinner()
 
 	s.SetStatus(true)
 	s.SetStatusMessage("Status: Not synced yet")
@@ -85,6 +89,28 @@ func (s *SysTray) togglePeriodicSync() {
 	}
 }
 
+func (s *SysTray) setupIconSpinner() {
+	imageCount := 6
+	currentFrame := 0
+	icons := [][]byte{
+		assets.AnimateIcon1,
+		assets.AnimateIcon2,
+		assets.AnimateIcon3,
+		assets.AnimateIcon4,
+		assets.AnimateIcon5,
+		assets.AnimateIcon6,
+	}
+
+	for range s.animationTicker.C {
+		if currentFrame == imageCount-1 {
+			currentFrame = 0
+		}
+
+		systray.SetTemplateIcon(icons[currentFrame], icons[currentFrame])
+		currentFrame = currentFrame + 1
+	}
+}
+
 func (s *SysTray) Run() {
 	systray.Run(s.onStartup, s.onExit)
 }
@@ -99,31 +125,8 @@ func (s *SysTray) Quit() {
 
 func (s *SysTray) StartAnimateIcon() {
 	if s.animationTicker != nil {
-		return
+		s.animationTicker.Reset(time.Second / 5)
 	}
-
-	imageCount := 6
-	currentFrame := 0
-	s.animationTicker = time.NewTicker(time.Second / 5)
-	icons := [][]byte{
-		assets.AnimateIcon1,
-		assets.AnimateIcon2,
-		assets.AnimateIcon3,
-		assets.AnimateIcon4,
-		assets.AnimateIcon5,
-		assets.AnimateIcon6,
-	}
-
-	go func() {
-		for range s.animationTicker.C {
-			if currentFrame == imageCount-1 {
-				currentFrame = 0
-			}
-
-			systray.SetTemplateIcon(icons[currentFrame], icons[currentFrame])
-			currentFrame = currentFrame + 1
-		}
-	}()
 }
 
 func (s *SysTray) StopAnimateIcon() {

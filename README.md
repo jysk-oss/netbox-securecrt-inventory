@@ -24,12 +24,12 @@ The config supports two special types: templates and expressions. In this sectio
 
 Templates provide a simple way to describe what value should be placed in a field. A good example is how it's used for the default path.
 
-A template is a string with one or more `{}` placeholders inside. For example: `NetBox/{tenant}/{site}`.
+A template is a string with one or more `{}` placeholders inside. For example: `NetBox/{tenant_name}/{site_name}`.
 If the tenant is "Example" and the site is "Test", the template would evaluate to `"NetBox/Example/Test`.
 
 Templates have access to the following variables:
 ```
-type: Either device or virtual_machine
+session_type: Either device or virtual_machine
 credential: The default session credential name
 path_template: The default path template
 device_name_template: The default device name template
@@ -56,7 +56,7 @@ Here are a few sample expressions to get you started:
 {{ site_group == 'adm' }}
 
 # Returns the value of the tag "connection_protocol" if found, otherwise "SSH"
-{{ findTag(device.Tags, 'connection_protocol') ?? 'SSH' }}
+{{ FindTag(device.Tags, 'connection_protocol') ?? 'SSH' }}
 
 # Returns true if the device name ends with example.com
 {{ device_name endsWith '.example.com' }}
@@ -68,6 +68,10 @@ device: The device object (go struct, most fields are CamelCase, ex: device.Tags
 site: The site object  (go struct, most fields are CamelCase, ex: site.Slug)
 ```
 
+Expressions have access to all expr functions and the following:
+```
+FindTag(<tags>, <tag_name)
+```
 
 ### Debug
 It's possible to debug expressions and templates, by enabling debug in the config file and examining the log file. The log file can be opened by clicking the icon and selecting "Open Log", when debug is enabled all variables will be output together with templates, and result.
@@ -97,11 +101,11 @@ session:
   # Global Session Options
   session_options:
     # Allows you to override the connection protocol; supports templates and expressions
-    connection_protocol: "{{ findTag(device.Tags, 'connection_protocol') ?? 'SSH' }}"
+    connection_protocol: "{{ FindTag(device.Tags, 'connection_protocol') ?? 'SSH' }}"
     # Set default credentials; they should be defined in SecureCRT beforehand under "Preferences -> General -> Credentials"
     credential: <username>
     # Set a firewall; supports templates and expressions
-    firewall: "{{ findTag(device.Tags, 'connection_firewall') ?? null }}"
+    firewall: "{{ FindTag(device.Tags, 'connection_firewall') ?? null }}"
 
   # Overrides based on conditions
   # target can be one of: path, device_name, description, connection_protocol, credential, firewall
