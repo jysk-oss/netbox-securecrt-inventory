@@ -105,7 +105,7 @@ session:
     # Set default credentials; they should be defined in SecureCRT beforehand under "Preferences -> General -> Credentials"
     credential: <username>
     # Set a firewall; supports templates and expressions
-    firewall: "{{ FindTag(device.Tags, 'connection_firewall') ?? null }}"
+    firewall: "{{ FindTag(device.Tags, 'connection_firewall') ?? ''None'' }}"
 
   # Overrides based on conditions
   # target can be one of: path, device_name, description, connection_protocol, credential, firewall
@@ -117,7 +117,7 @@ session:
       value: _Stores/{region_name}/{site_name}
 
     - target: path
-      condition: "{{ type == 'virtual_machine' }}"
+      condition: "{{ device_type == 'virtual_machine' }}"
       value: _Servers/{region_name}
     
     # device_name override use cases include removing domain names, extra values like .1, and so on

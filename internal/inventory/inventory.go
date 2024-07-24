@@ -51,6 +51,13 @@ func (i *InventorySync) getSite(sites []*models.Site, siteID int64) (*models.Sit
 	return nil, ErrorFailedToFindSite
 }
 
+func (i *InventorySync) getRegionName(site *models.Site) string {
+	if site.Region != nil && site.Region.Name != nil {
+		return *site.Region.Name
+	}
+	return "No Region"
+}
+
 func (i *InventorySync) getTenant(device interface{}) string {
 	nd, ok := device.(*models.DeviceWithConfigContext)
 	if ok && nd != nil && nd.Tenant != nil {
@@ -94,6 +101,7 @@ func (i *InventorySync) getDeviceSessions(devices []*models.DeviceWithConfigCont
 		}
 
 		tenant := i.getTenant(device)
+		regionName := i.getRegionName(site)
 		ipAddress := strings.Split(*device.PrimaryIp4.Address, "/")[0]
 		siteAddress := strings.ReplaceAll(site.PhysicalAddress, "\r\n", ", ")
 		deviceType := device.DeviceType.Display
@@ -108,7 +116,7 @@ func (i *InventorySync) getDeviceSessions(devices []*models.DeviceWithConfigCont
 		env.DeviceRole = *device.DeviceRole.Name
 		env.DeviceType = deviceType
 		env.DeviceIP = ipAddress
-		env.RegionName = *site.Region.Name
+		env.RegionName = regionName
 		env.TenantName = tenant
 		env.Site = site
 		env.SiteName = site.Display
@@ -141,6 +149,7 @@ func (i *InventorySync) getVirtualMachineSessions(devices []*models.VirtualMachi
 		}
 
 		tenant := i.getTenant(device)
+		regionName := i.getRegionName(site)
 		ipAddress := strings.Split(*device.PrimaryIp4.Address, "/")[0]
 		siteAddress := strings.ReplaceAll(site.PhysicalAddress, "\r\n", ", ")
 		deviceType := ""
@@ -159,7 +168,7 @@ func (i *InventorySync) getVirtualMachineSessions(devices []*models.VirtualMachi
 		env.DeviceRole = "Virtual Machine"
 		env.DeviceType = deviceType
 		env.DeviceIP = ipAddress
-		env.RegionName = *site.Region.Name
+		env.RegionName = regionName
 		env.TenantName = tenant
 		env.Site = site
 		env.SiteName = site.Display
