@@ -44,6 +44,7 @@ tenant_name: Tenant name from NetBox
 site_name: Site name from NetBox
 site_group: Site Group name from NetBox
 site_address: Site address from NetBox
+virtual_chassis_name: Virtual Chassis name from NetBox
 ```
 
 ### Expressions
@@ -70,7 +71,7 @@ site: The site object  (go struct, most fields are CamelCase, ex: site.Slug)
 
 Expressions have access to all expr functions and the following:
 ```
-FindTag(<tags>, <tag_name)
+FindTag(<tags>, <tag_name>)
 ```
 
 ### Debug

@@ -109,6 +109,10 @@ func (i *InventorySync) getDeviceSessions(devices []*models.DeviceWithConfigCont
 		if site.Group != nil {
 			siteGroup = *site.Group.Slug
 		}
+		virtualChassisName := ""
+		if device.VirtualChassis != nil {
+			virtualChassisName = *device.VirtualChassis.Name
+		}
 
 		env := i.getCommonEnvironment("device")
 		env.Device = device
@@ -122,6 +126,7 @@ func (i *InventorySync) getDeviceSessions(devices []*models.DeviceWithConfigCont
 		env.SiteName = site.Display
 		env.SiteGroup = siteGroup
 		env.SiteAddress = siteAddress
+		env.VirtualChassisName = virtualChassisName
 
 		err = applyOverrides(i.cfg.Session.Overrides, env)
 		if err != nil {
