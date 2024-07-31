@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/netbox-community/go-netbox/v3/netbox/models"
+	"github.com/jysk-network/netbox-securecrt-inventory/internal/netbox"
 )
 
 type Environment struct {
@@ -33,10 +33,10 @@ type Environment struct {
 	Site   interface{} `expr:"site"`
 }
 
-func (Environment) FindTag(tags []*models.NestedTag, label string) *string {
+func (Environment) FindTag(tags []netbox.NestedTag, label string) *string {
 	for i := 0; i < len(tags); i++ {
-		if tags[i].Name != nil && strings.Contains(*tags[i].Name, label) {
-			result := strings.TrimPrefix(*tags[i].Name, fmt.Sprintf("%s:", label))
+		if strings.Contains(tags[i].Name, label) {
+			result := strings.TrimPrefix(tags[i].Name, fmt.Sprintf("%s:", label))
 			return &result
 		}
 	}

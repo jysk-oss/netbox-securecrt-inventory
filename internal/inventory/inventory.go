@@ -10,7 +10,6 @@ import (
 	"github.com/jysk-network/netbox-securecrt-inventory/internal/netbox"
 	"github.com/jysk-network/netbox-securecrt-inventory/pkg/evaluator"
 	"github.com/jysk-network/netbox-securecrt-inventory/pkg/securecrt"
-	"github.com/netbox-community/go-netbox/v3/netbox/models"
 )
 
 const (
@@ -41,35 +40,45 @@ func New(cfg *config.Config, nb *netbox.NetBox, scrt *securecrt.SecureCRT, state
 	return &inv
 }
 
-func (i *InventorySync) getSite(sites []*models.Site, siteID int64) (*models.Site, error) {
+func (i *InventorySync) getSite(sites []netbox.Site, siteID int32) (*netbox.Site, error) {
 	for x := 0; x < len(sites); x++ {
-		if sites[x].ID == siteID {
-			return sites[x], nil
+		if sites[x].Id == siteID {
+			return &sites[x], nil
 		}
 	}
 
 	return nil, ErrorFailedToFindSite
 }
 
-func (i *InventorySync) getRegionName(site *models.Site) string {
-	if site.Region != nil && site.Region.Name != nil {
-		return *site.Region.Name
+func (i *InventorySync) getRegionName(site *netbox.Site) string {
+	if site.Region != nil {
+		return site.Region.Name
 	}
 	return "No Region"
 }
 
 func (i *InventorySync) getTenant(device interface{}) string {
-	nd, ok := device.(*models.DeviceWithConfigContext)
-	if ok && nd != nil && nd.Tenant != nil {
-		return *nd.Tenant.Name
+	nd, ok := device.(netbox.DeviceWithConfigContext)
+	if ok && nd.Tenant != nil {
+		return nd.Tenant.Name
 	}
 
-	vm, ok := device.(*models.VirtualMachineWithConfigContext)
-	if ok && vm != nil && vm.Tenant != nil {
-		return *vm.Tenant.Name
+	vm, ok := device.(netbox.VirtualMachineWithConfigContext)
+	if ok && vm.Tenant != nil {
+		return vm.Tenant.Name
 	}
 
 	return "No Tenant"
+}
+
+func (i *InventorySync) getPrimaryIP(primaryIP *netbox.IPAddress) *string {
+	if primaryIP != nil {
+		address := primaryIP.Address
+		address = strings.Split(address, "/")[0]
+		return &address
+	}
+
+	return nil
 }
 
 func (i *InventorySync) writeSession(session *securecrt.SecureCRTSession) error {
@@ -92,22 +101,31 @@ func (i *InventorySync) getCommonEnvironment(sync_type string) *evaluator.Enviro
 	}
 }
 
-func (i *InventorySync) getDeviceSessions(devices []*models.DeviceWithConfigContext, sites []*models.Site) ([]*securecrt.SecureCRTSession, error) {
+func (i *InventorySync) getDeviceSessions(devices []netbox.DeviceWithConfigContext, sites []netbox.Site) ([]*securecrt.SecureCRTSession, error) {
 	var sessions []*securecrt.SecureCRTSession
 	for _, device := range devices {
-		site, err := i.getSite(sites, device.Site.ID)
+		site, err := i.getSite(sites, device.Site.Id)
 		if err != nil {
 			return nil, err
 		}
 
+		ipAddress := i.getPrimaryIP(device.PrimaryIp4)
+		if ipAddress == nil {
+			return nil, fmt.Errorf("primary ip is not set on %s", device.Name)
+		}
+
 		tenant := i.getTenant(device)
 		regionName := i.getRegionName(site)
-		ipAddress := strings.Split(*device.PrimaryIp4.Address, "/")[0]
 		siteAddress := strings.ReplaceAll(site.PhysicalAddress, "\r\n", ", ")
 		deviceType := device.DeviceType.Display
 		siteGroup := ""
 		if site.Group != nil {
-			siteGroup = *site.Group.Slug
+			siteGroup = site.Group.Slug
+		}
+
+		virtualChassisName := ""
+		if device.VirtualChassis != nil {
+			virtualChassisName = device.VirtualChassis.Name
 		}
 		virtualChassisName := ""
 		if device.VirtualChassis != nil {
@@ -117,9 +135,9 @@ func (i *InventorySync) getDeviceSessions(devices []*models.DeviceWithConfigCont
 		env := i.getCommonEnvironment("device")
 		env.Device = device
 		env.DeviceName = device.Display
-		env.DeviceRole = *device.DeviceRole.Name
+		env.DeviceRole = device.Role.Name
 		env.DeviceType = deviceType
-		env.DeviceIP = ipAddress
+		env.DeviceIP = *ipAddress
 		env.RegionName = regionName
 		env.TenantName = tenant
 		env.Site = site
@@ -145,17 +163,25 @@ func (i *InventorySync) getDeviceSessions(devices []*models.DeviceWithConfigCont
 	return sessions, nil
 }
 
-func (i *InventorySync) getVirtualMachineSessions(devices []*models.VirtualMachineWithConfigContext, sites []*models.Site) ([]*securecrt.SecureCRTSession, error) {
+func (i *InventorySync) getVirtualMachineSessions(devices []netbox.VirtualMachineWithConfigContext, sites []netbox.Site) ([]*securecrt.SecureCRTSession, error) {
 	var sessions []*securecrt.SecureCRTSession
 	for _, device := range devices {
-		site, err := i.getSite(sites, device.Site.ID)
+		if device.Site == nil {
+			return nil, fmt.Errorf("site is not set on vm: %s", device.Name)
+		}
+
+		site, err := i.getSite(sites, device.Site.Id)
 		if err != nil {
 			return nil, err
 		}
 
+		ipAddress := i.getPrimaryIP(device.PrimaryIp4)
+		if ipAddress == nil {
+			return nil, fmt.Errorf("primary ip is not set on %s", device.Name)
+		}
+
 		tenant := i.getTenant(device)
 		regionName := i.getRegionName(site)
-		ipAddress := strings.Split(*device.PrimaryIp4.Address, "/")[0]
 		siteAddress := strings.ReplaceAll(site.PhysicalAddress, "\r\n", ", ")
 		deviceType := ""
 		if device.Platform != nil {
@@ -164,7 +190,7 @@ func (i *InventorySync) getVirtualMachineSessions(devices []*models.VirtualMachi
 
 		siteGroup := ""
 		if site.Group != nil {
-			siteGroup = *site.Group.Slug
+			siteGroup = site.Group.Slug
 		}
 
 		env := i.getCommonEnvironment("virtual_machine")
@@ -172,7 +198,7 @@ func (i *InventorySync) getVirtualMachineSessions(devices []*models.VirtualMachi
 		env.DeviceName = device.Display
 		env.DeviceRole = "Virtual Machine"
 		env.DeviceType = deviceType
-		env.DeviceIP = ipAddress
+		env.DeviceIP = *ipAddress
 		env.RegionName = regionName
 		env.TenantName = tenant
 		env.Site = site
