@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/netbox-community/go-netbox/v4"
+	"github.com/jysk-network/netbox-securecrt-inventory/internal/netbox"
 )
 
 type Environment struct {

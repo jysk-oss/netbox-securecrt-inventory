@@ -10,7 +10,6 @@ import (
 	"github.com/jysk-network/netbox-securecrt-inventory/internal/netbox"
 	"github.com/jysk-network/netbox-securecrt-inventory/pkg/evaluator"
 	"github.com/jysk-network/netbox-securecrt-inventory/pkg/securecrt"
-	nbm "github.com/netbox-community/go-netbox/v4"
 )
 
 const (
@@ -41,7 +40,7 @@ func New(cfg *config.Config, nb *netbox.NetBox, scrt *securecrt.SecureCRT, state
 	return &inv
 }
 
-func (i *InventorySync) getSite(sites []nbm.Site, siteID int32) (*nbm.Site, error) {
+func (i *InventorySync) getSite(sites []netbox.Site, siteID int32) (*netbox.Site, error) {
 	for x := 0; x < len(sites); x++ {
 		if sites[x].Id == siteID {
 			return &sites[x], nil
@@ -51,30 +50,30 @@ func (i *InventorySync) getSite(sites []nbm.Site, siteID int32) (*nbm.Site, erro
 	return nil, ErrorFailedToFindSite
 }
 
-func (i *InventorySync) getRegionName(site *nbm.Site) string {
-	if site.AdditionalProperties != nil && site.Region.Name != nil {
-		return *site.Region.Name
+func (i *InventorySync) getRegionName(site *netbox.Site) string {
+	if site.Region != nil {
+		return site.Region.Name
 	}
 	return "No Region"
 }
 
 func (i *InventorySync) getTenant(device interface{}) string {
-	nd, ok := device.(nbm.DeviceWithConfigContext)
-	if ok && nd.Tenant.IsSet() {
-		return nd.Tenant.Get().Name
+	nd, ok := device.(netbox.DeviceWithConfigContext)
+	if ok && nd.Tenant != nil {
+		return nd.Tenant.Name
 	}
 
-	vm, ok := device.(nbm.VirtualMachineWithConfigContext)
-	if ok && vm.Tenant.IsSet() {
-		return vm.Tenant.Get().Name
+	vm, ok := device.(netbox.VirtualMachineWithConfigContext)
+	if ok && vm.Tenant != nil {
+		return vm.Tenant.Name
 	}
 
 	return "No Tenant"
 }
 
-func (i *InventorySync) getPrimaryIP(primaryIP nbm.NullableIPAddress) *string {
-	if primaryIP.IsSet() {
-		address := primaryIP.Get().GetAddress()
+func (i *InventorySync) getPrimaryIP(primaryIP *netbox.IPAddress) *string {
+	if primaryIP != nil {
+		address := primaryIP.Address
 		address = strings.Split(address, "/")[0]
 		return &address
 	}
@@ -102,7 +101,7 @@ func (i *InventorySync) getCommonEnvironment(sync_type string) *evaluator.Enviro
 	}
 }
 
-func (i *InventorySync) getDeviceSessions(devices []nbm.DeviceWithConfigContext, sites []nbm.Site) ([]*securecrt.SecureCRTSession, error) {
+func (i *InventorySync) getDeviceSessions(devices []netbox.DeviceWithConfigContext, sites []netbox.Site) ([]*securecrt.SecureCRTSession, error) {
 	var sessions []*securecrt.SecureCRTSession
 	for _, device := range devices {
 		site, err := i.getSite(sites, device.Site.Id)
@@ -111,8 +110,8 @@ func (i *InventorySync) getDeviceSessions(devices []nbm.DeviceWithConfigContext,
 		}
 
 		ipAddress := i.getPrimaryIP(device.PrimaryIp4)
-		if ipAddress != nil {
-			return nil, fmt.Errorf("primary ip is not set on %s", device.GetName())
+		if ipAddress == nil {
+			return nil, fmt.Errorf("primary ip is not set on %s", device.Name)
 		}
 
 		tenant := i.getTenant(device)
@@ -121,7 +120,7 @@ func (i *InventorySync) getDeviceSessions(devices []nbm.DeviceWithConfigContext,
 		deviceType := device.DeviceType.Display
 		siteGroup := ""
 		if site.Group != nil {
-			siteGroup = *site.Group.Slug
+			siteGroup = site.Group.Slug
 		}
 
 		env := i.getCommonEnvironment("device")
@@ -154,34 +153,34 @@ func (i *InventorySync) getDeviceSessions(devices []nbm.DeviceWithConfigContext,
 	return sessions, nil
 }
 
-func (i *InventorySync) getVirtualMachineSessions(devices []nbm.VirtualMachineWithConfigContext, sites []nbm.Site) ([]*securecrt.SecureCRTSession, error) {
+func (i *InventorySync) getVirtualMachineSessions(devices []netbox.VirtualMachineWithConfigContext, sites []netbox.Site) ([]*securecrt.SecureCRTSession, error) {
 	var sessions []*securecrt.SecureCRTSession
 	for _, device := range devices {
-		if !device.Site.IsSet() {
-			return nil, fmt.Errorf("site is not set on vm: %s", device.GetName())
+		if device.Site == nil {
+			return nil, fmt.Errorf("site is not set on vm: %s", device.Name)
 		}
 
-		site, err := i.getSite(sites, device.Site.Get().Id)
+		site, err := i.getSite(sites, device.Site.Id)
 		if err != nil {
 			return nil, err
 		}
 
 		ipAddress := i.getPrimaryIP(device.PrimaryIp4)
-		if ipAddress != nil {
-			return nil, fmt.Errorf("primary ip is not set on %s", device.GetName())
+		if ipAddress == nil {
+			return nil, fmt.Errorf("primary ip is not set on %s", device.Name)
 		}
 
 		tenant := i.getTenant(device)
 		regionName := i.getRegionName(site)
 		siteAddress := strings.ReplaceAll(site.PhysicalAddress, "\r\n", ", ")
 		deviceType := ""
-		if device.Platform.IsSet() {
-			deviceType = device.Platform.Get().Display
+		if device.Platform != nil {
+			deviceType = device.Platform.Display
 		}
 
 		siteGroup := ""
 		if site.Group != nil {
-			siteGroup = *site.Group.Slug
+			siteGroup = site.Group.Slug
 		}
 
 		env := i.getCommonEnvironment("virtual_machine")

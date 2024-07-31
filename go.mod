@@ -5,7 +5,6 @@ go 1.21.1
 require (
 	fyne.io/systray v1.10.0
 	github.com/expr-lang/expr v1.16.9
-	github.com/netbox-community/go-netbox/v4 v4.0.3-0
 	github.com/sqweek/dialog v0.0.0-20240226140203-065105509627
 	golang.org/x/sync v0.7.0
 	gopkg.in/yaml.v3 v3.0.1
