@@ -27,6 +27,7 @@ type Environment struct {
 	SiteName                   string `expr:"site_name"`
 	SiteGroup                  string `expr:"site_group"`
 	SiteAddress                string `expr:"site_address"`
+	VirtualChassisName         string `expr:"virtual_chassis_name"`
 
 	Device interface{} `expr:"device"`
 	Site   interface{} `expr:"site"`
