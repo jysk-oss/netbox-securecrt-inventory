@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -88,7 +89,8 @@ func main() {
 	}
 
 	// setup our netbox client, and the inventory client to combine them all
-	nb := netbox.New(cfg.NetboxUrl, cfg.NetboxToken)
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	nb := netbox.New(cfg.NetboxUrl, cfg.NetboxToken, ctx)
 	invClient := inventory.New(cfg, nb, scrt, syncCallback)
 
 	// handle periodic sync if enabled
@@ -119,6 +121,7 @@ func main() {
 
 	// show the systray in a blocking way
 	systray.Run()
+	cancelCtx()
 }
 
 func openFile(file string) error {
