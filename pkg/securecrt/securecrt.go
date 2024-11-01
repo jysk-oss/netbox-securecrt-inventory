@@ -88,7 +88,7 @@ func (scrt *SecureCRT) RemoveSessions(sessions []*SecureCRTSession) error {
 
 	for i := 0; i < len(currentSessions); i++ {
 		found := slices.ContainsFunc(sessions, func(e *SecureCRTSession) bool {
-			return currentSessions[i].DeviceName == e.DeviceName
+			return currentSessions[i].DeviceName == e.DeviceName && currentSessions[i].fullPath == e.fullPath
 		})
 
 		if !found {
