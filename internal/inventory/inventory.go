@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -147,7 +148,7 @@ func (i *InventorySync) getDeviceSessions(devices []netbox.DeviceWithConfigConte
 			return nil, err
 		}
 
-		path := fmt.Sprintf("%s/%s/%s.ini", i.scrt.GetSessionPath(), env.Path, env.DeviceName)
+		path := filepath.Clean(fmt.Sprintf("%s/%s/%s.ini", i.scrt.GetSessionPath(), env.Path, env.DeviceName))
 		session := getSessionWithOverrides(path, env)
 		sessions = append(sessions, session)
 		err = i.writeSession(session)
