@@ -208,7 +208,7 @@ func (i *InventorySync) getVirtualMachineSessions(devices []netbox.VirtualMachin
 			return nil, err
 		}
 
-		path := fmt.Sprintf("%s/%s/%s.ini", i.scrt.GetSessionPath(), env.Path, env.DeviceName)
+		path := filepath.Clean(fmt.Sprintf("%s/%s/%s.ini", i.scrt.GetSessionPath(), env.Path, env.DeviceName))
 		session := getSessionWithOverrides(path, env)
 		sessions = append(sessions, session)
 		err = i.writeSession(session)
