@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -156,36 +155,72 @@ func (s *SecureCRTSession) delete() error {
 		return err
 	}
 
-	// make sure to also remove empty folders so they dont clutter
-	folder := filepath.Dir(s.fullPath)
-	empty, err := isDirEmpty(folder)
+	// find the highest-level folder that is “empty” (ignoring this child folder and some ignored files)
+	folder, err := getFolderToDelete(filepath.Dir(s.fullPath))
 	if err != nil {
 		return err
 	}
 
-	if empty {
+	if folder != "" {
 		return os.RemoveAll(folder)
 	}
 
 	return nil
 }
 
-func isDirEmpty(name string) (bool, error) {
-	f, err := os.Open(name)
+// getFolderToDelete climbs the directory tree starting at 'folder'. It
+// returns the highest ancestor directory that is “empty” except for a single
+// subdirectory (the one we just deleted) and optionally a few ignored files.
+func getFolderToDelete(folder string) (string, error) {
+	// Start by ignoring the folder’s own basename.
+	base := filepath.Base(folder)
+	empty, err := isDirEmpty(folder, base)
+	if err != nil {
+		return "", err
+	}
+
+	if !empty {
+		return "", nil
+	}
+
+	// Climb up the tree. In each parent directory, ignore the subdirectory (child)
+	// that we came from.
+	for {
+		parent := filepath.Clean(filepath.Join(folder, ".."))
+		empty, err := isDirEmpty(parent, filepath.Base(folder))
+		if err != nil {
+			return "", err
+		}
+		if !empty {
+			break
+		}
+		folder = parent
+	}
+	return folder, nil
+}
+
+// isDirEmpty checks if the directory 'dir' is empty except for an entry
+// named 'ignore' (and a couple of extra files that we want to ignore).
+func isDirEmpty(dir, ignore string) (bool, error) {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
 
-	names, err := f.Readdirnames(1)
-	if err == io.EOF {
-		return true, nil
+	for _, entry := range entries {
+		// Skip the ignored directory entry.
+		if entry.IsDir() && entry.Name() == ignore {
+			continue
+		}
+
+		// Skip known ignorable files.
+		if entry.Name() == ".DS_Store" || entry.Name() == "__FolderData__.ini" {
+			continue
+		}
+
+		// Any other file or directory means 'dir' is not empty.
+		return false, nil
 	}
 
-	// a folder is also empty if it only have one of these files
-	if len(names) == 1 && (names[0] == ".DS_Store" || names[0] == "__FolderData__.ini") {
-		return true, nil
-	}
-
-	return false, err // Either not empty or error, suits both cases
+	return true, nil
 }
