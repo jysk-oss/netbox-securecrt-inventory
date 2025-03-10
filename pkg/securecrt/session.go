@@ -17,6 +17,7 @@ type SecureCRTSession struct {
 	DeviceName     string
 	Path           string
 	IP             string `session:"Hostname" type:"S"`
+	Port           int    `session:"[SSH2] Port" type:"D"`
 	Protocol       string `session:"Protocol Name" type:"S"`
 	Description    string `session:"Description" type:"Z"`
 	CredentialName string `session:"Credential Title" type:"S"`
@@ -129,6 +130,8 @@ func (s *SecureCRTSession) write(defaultConfig string, mode fs.FileMode) error {
 					data.WriteString(" " + v + "\n")
 				}
 			}
+		} else if itemType == "D" {
+			data.WriteString(fmt.Sprintf("%s:\"%s\"=%08X\n", itemType, key, val.Field(i).Int()))
 		} else {
 			data.WriteString(fmt.Sprintf("%s:\"%s\"=%s\n", itemType, key, value))
 		}

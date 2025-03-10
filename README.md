@@ -88,9 +88,20 @@ netbox_url: <netbox_url>
 netbox_token: <netbox_token>
 root_path: NetBox
 
+# Enable / Disable sync of console server ports
+# WARNING: By default the sessions will have the same name as the device, we suggest to override them (see below for an example)
+# This is by design, as to not force a preference on users.
+console_server_sync_enable: false
+
 # Enable/Disable periodic sync (note: SecureCRT needs to be restarted for changes to take effect)
 periodic_sync_enable: true
 periodic_sync_interval: 120
+
+# Filter what is synced, default is sync everything
+# All filters are evaluated for each item, and needs to return true, if any of the filters return false it will not be synced.
+filters:
+    - target: path
+      condition: "{{ site_group != 'external' }}"
 
 # Session settings
 session:
@@ -126,6 +137,15 @@ session:
     - target: device_name
       condition: "{{ device_name endsWith '.1' }}"
       value: "{{ replace(device_name, '.1', '') }}"
+
+    # if console_server_sync_enable is enabled, we can use is_console_session to check if its a console server, and console_server_port is set to the port name
+    # in the example below we transform "Port 1" to 3001 and change the device name to append (console)
+    - target: device_port
+      condition: '{{ is_console_session == true }}'
+      value: '{{ 3000 + int(replace(console_server_port, "Port ", "")) }}'
+    - target: device_name
+      condition: '{{ is_console_session == true }}'
+      value: '{{ device_name }} (console)'
 ```
 
 ## Development

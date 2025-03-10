@@ -194,3 +194,28 @@ type VirtualMachineWithConfigContext struct {
 	ConfigContext        interface{}            `json:"config_context"`
 	AdditionalProperties map[string]interface{}
 }
+
+type NestedDevice struct {
+	Id          int32  `json:"id"`
+	Url         string `json:"url"`
+	Display     string `json:"display"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+type ConnectedEndpoint struct {
+	Id      int32        `json:"id"`
+	Display string       `json:"display"`
+	Device  NestedDevice `json:"device"`
+}
+
+type ConsoleServerPort struct {
+	Id                 int32                  `json:"id"`
+	Url                string                 `json:"url"`
+	Display            string                 `json:"display"`
+	Name               string                 `json:"name"`
+	Tags               []NestedTag            `json:"tags,omitempty"`
+	CustomFields       map[string]interface{} `json:"custom_fields,omitempty"`
+	Device             NestedDevice           `json:"device"`
+	ConnectedEndpoints *[]ConnectedEndpoint   `json:"connected_endpoints,omitempty"`
+}

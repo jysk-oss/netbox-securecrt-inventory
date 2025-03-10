@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -72,6 +73,16 @@ func (i *InventorySync) getTenant(device interface{}) string {
 	return "No Tenant"
 }
 
+func (i *InventorySync) findDevice(devices []netbox.DeviceWithConfigContext, id int32) *netbox.DeviceWithConfigContext {
+	for _, device := range devices {
+		if device.Id == id {
+			return &device
+		}
+	}
+
+	return nil
+}
+
 func (i *InventorySync) getPrimaryIP(primaryIP *netbox.IPAddress) *string {
 	if primaryIP != nil {
 		address := primaryIP.Address
@@ -91,6 +102,20 @@ func (i *InventorySync) writeSession(session *securecrt.SecureCRTSession) error 
 	return nil
 }
 
+func (i *InventorySync) checkFilters(env *evaluator.Environment) bool {
+	for _, filter := range i.cfg.Filters {
+		result, err := evaluator.EvaluateCondition(filter.Condition, env)
+		if err == nil && result {
+			continue
+		}
+
+		slog.Debug("filtering device", slog.String("device_name", env.DeviceName), slog.String("filter", filter.Condition))
+		return false
+	}
+
+	return true
+}
+
 func (i *InventorySync) getCommonEnvironment(sync_type string) *evaluator.Environment {
 	return &evaluator.Environment{
 		SessionType:                sync_type,
@@ -100,6 +125,86 @@ func (i *InventorySync) getCommonEnvironment(sync_type string) *evaluator.Enviro
 		FirewallTemplate:           i.cfg.Session.SessionOptions.Firewall,
 		ConnectionProtocolTemplate: i.cfg.Session.SessionOptions.ConnectionProtocol,
 	}
+}
+
+func (i *InventorySync) getConsoleSessions(devices []netbox.DeviceWithConfigContext, consolePorts []netbox.ConsoleServerPort, sites []netbox.Site) ([]*securecrt.SecureCRTSession, error) {
+	var sessions []*securecrt.SecureCRTSession
+	for _, port := range consolePorts {
+		if port.ConnectedEndpoints == nil || len(*port.ConnectedEndpoints) == 0 {
+			continue
+		}
+
+		oobDevice := i.findDevice(devices, port.Device.Id)
+		if oobDevice == nil {
+			return nil, fmt.Errorf("failed to find device for %s", port.Device.Name)
+		}
+
+		endDevice := i.findDevice(devices, (*port.ConnectedEndpoints)[0].Device.Id)
+		if endDevice == nil {
+			slog.Warn("failed to find console device", slog.String("device_name", (*port.ConnectedEndpoints)[0].Device.Name))
+			continue
+		}
+
+		site, err := i.getSite(sites, endDevice.Site.Id)
+		if err != nil {
+			return nil, err
+		}
+
+		ipAddress := i.getPrimaryIP(oobDevice.PrimaryIp)
+		if ipAddress == nil {
+			return nil, fmt.Errorf("primary ip is not set on %s", oobDevice.Name)
+		}
+
+		tenant := i.getTenant(*endDevice)
+		regionName := i.getRegionName(site)
+		siteAddress := strings.ReplaceAll(site.PhysicalAddress, "\r\n", ", ")
+		deviceType := endDevice.DeviceType.Display
+		siteGroup := ""
+		if site.Group != nil {
+			siteGroup = site.Group.Slug
+		}
+
+		virtualChassisName := ""
+		if endDevice.VirtualChassis != nil {
+			virtualChassisName = endDevice.VirtualChassis.Name
+		}
+
+		env := i.getCommonEnvironment("device")
+		env.Device = endDevice
+		env.DevicePort = 22
+		env.DeviceName = endDevice.Name
+		env.DeviceRole = endDevice.Role.Name
+		env.DeviceType = deviceType
+		env.DeviceIP = *ipAddress
+		env.RegionName = regionName
+		env.TenantName = tenant
+		env.Site = site
+		env.SiteName = site.Display
+		env.SiteGroup = siteGroup
+		env.SiteAddress = siteAddress
+		env.VirtualChassisName = virtualChassisName
+		env.IsConsoleSession = true
+		env.ConsoleServerPort = port.Name
+
+		err = applyOverrides(i.cfg.Session.Overrides, env)
+		if err != nil {
+			return nil, err
+		}
+
+		// Check if the device should be filtered
+		shouldSaveSession := i.checkFilters(env)
+		if shouldSaveSession {
+			path := filepath.Clean(fmt.Sprintf("%s/%s/%s.ini", i.scrt.GetSessionPath(), env.Path, env.DeviceName))
+			session := getSessionWithOverrides(path, env)
+			sessions = append(sessions, session)
+			err = i.writeSession(session)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return sessions, nil
 }
 
 func (i *InventorySync) getDeviceSessions(devices []netbox.DeviceWithConfigContext, sites []netbox.Site) ([]*securecrt.SecureCRTSession, error) {
@@ -131,6 +236,7 @@ func (i *InventorySync) getDeviceSessions(devices []netbox.DeviceWithConfigConte
 
 		env := i.getCommonEnvironment("device")
 		env.Device = device
+		env.DevicePort = 22
 		env.DeviceName = device.Display
 		env.DeviceRole = device.Role.Name
 		env.DeviceType = deviceType
@@ -148,12 +254,16 @@ func (i *InventorySync) getDeviceSessions(devices []netbox.DeviceWithConfigConte
 			return nil, err
 		}
 
-		path := filepath.Clean(fmt.Sprintf("%s/%s/%s.ini", i.scrt.GetSessionPath(), env.Path, env.DeviceName))
-		session := getSessionWithOverrides(path, env)
-		sessions = append(sessions, session)
-		err = i.writeSession(session)
-		if err != nil {
-			return nil, err
+		// Check if the device should be filtered
+		shouldSaveSession := i.checkFilters(env)
+		if shouldSaveSession {
+			path := filepath.Clean(fmt.Sprintf("%s/%s/%s.ini", i.scrt.GetSessionPath(), env.Path, env.DeviceName))
+			session := getSessionWithOverrides(path, env)
+			sessions = append(sessions, session)
+			err = i.writeSession(session)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -164,7 +274,7 @@ func (i *InventorySync) getVirtualMachineSessions(devices []netbox.VirtualMachin
 	var sessions []*securecrt.SecureCRTSession
 	for _, device := range devices {
 		if device.Site == nil {
-			return nil, fmt.Errorf("site is not set on vm: %s", device.Name)
+			return nil, fmt.Errorf("site is not set on: %s", device.Name)
 		}
 
 		site, err := i.getSite(sites, device.Site.Id)
@@ -174,7 +284,7 @@ func (i *InventorySync) getVirtualMachineSessions(devices []netbox.VirtualMachin
 
 		ipAddress := i.getPrimaryIP(device.PrimaryIp)
 		if ipAddress == nil {
-			return nil, fmt.Errorf("primary ip is not set on %s", device.Name)
+			return nil, fmt.Errorf("primary ip is not set on: %s", device.Name)
 		}
 
 		tenant := i.getTenant(device)
@@ -192,6 +302,7 @@ func (i *InventorySync) getVirtualMachineSessions(devices []netbox.VirtualMachin
 
 		env := i.getCommonEnvironment("virtual_machine")
 		env.Device = device
+		env.DevicePort = 22
 		env.DeviceName = device.Display
 		env.DeviceRole = "Virtual Machine"
 		env.DeviceType = deviceType
@@ -208,12 +319,16 @@ func (i *InventorySync) getVirtualMachineSessions(devices []netbox.VirtualMachin
 			return nil, err
 		}
 
-		path := filepath.Clean(fmt.Sprintf("%s/%s/%s.ini", i.scrt.GetSessionPath(), env.Path, env.DeviceName))
-		session := getSessionWithOverrides(path, env)
-		sessions = append(sessions, session)
-		err = i.writeSession(session)
-		if err != nil {
-			return nil, err
+		// Check if the device should be filtered
+		shouldSaveSession := i.checkFilters(env)
+		if shouldSaveSession {
+			path := filepath.Clean(fmt.Sprintf("%s/%s/%s.ini", i.scrt.GetSessionPath(), env.Path, env.DeviceName))
+			session := getSessionWithOverrides(path, env)
+			sessions = append(sessions, session)
+			err = i.writeSession(session)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -238,6 +353,15 @@ func (i *InventorySync) runSync() error {
 		return err
 	}
 
+	var consolePorts []netbox.ConsoleServerPort
+	if i.cfg.EnableConsoleServerSync {
+		i.stateLogger(STATE_RUNNING, "Running: Getting Console Server Ports")
+		consolePorts, err = i.nb.GetConsoleServerPorts()
+		if err != nil {
+			return err
+		}
+	}
+
 	i.stateLogger(STATE_RUNNING, "Running: Getting Virtual Machines")
 	vms, err := i.nb.GetVirtualMachines()
 	if err != nil {
@@ -255,8 +379,17 @@ func (i *InventorySync) runSync() error {
 		return err
 	}
 
+	var consoleSessions []*securecrt.SecureCRTSession
+	if i.cfg.EnableConsoleServerSync {
+		consoleSessions, err = i.getConsoleSessions(devices, consolePorts, sites)
+		if err != nil {
+			return err
+		}
+	}
+
 	i.stateLogger(STATE_RUNNING, "Running: Removing old sessions")
 	allSessions := append(deviceSessions, vmSessions...)
+	allSessions = append(allSessions, consoleSessions...)
 	i.scrt.RemoveSessions(allSessions)
 
 	return nil

@@ -29,12 +29,13 @@ func EvaluateCondition(condition string, env *Environment) (bool, error) {
 }
 
 func EvaluateResult(condition string, env *Environment) (any, error) {
-	if !strings.HasPrefix(condition, "{{") {
+	if !strings.Contains(condition, "{{") {
 		return ApplyTemplate(condition, env), nil
 	}
 
-	condition = strings.ReplaceAll(condition, "{{", "")
-	condition = strings.ReplaceAll(condition, "}}", "")
+	start, end := getStringBeforeAfter(condition, "{{", "}}")
+
+	condition = getStringInBetween(condition, "{{", "}}")
 	condition = strings.Trim(condition, " ")
 
 	// compile and cache conditions
@@ -54,6 +55,10 @@ func EvaluateResult(condition string, env *Environment) (any, error) {
 		return false, err
 	}
 
+	if start != "" || end != "" {
+		output = fmt.Sprintf("%s%s%s", start, output, end)
+	}
+
 	slog.Debug("Evaluation Result", slog.String("device", env.DeviceName), slog.String("condition", condition), slog.Any("result", output))
 	return output, nil
 }
@@ -70,4 +75,30 @@ func ApplyTemplate(template string, env *Environment) string {
 
 	slog.Debug("Evaluation Template Result", slog.String("device", env.DeviceName), slog.String("template", oldTemplate), slog.String("result", template))
 	return template
+}
+
+func getStringBeforeAfter(str string, start string, end string) (string, string) {
+	s := strings.Index(str, start)
+	if s == -1 {
+		return "", ""
+	}
+	s += len(start)
+	e := strings.Index(str[s:], end)
+	if e == -1 {
+		return "", ""
+	}
+	return str[:s-2], str[s+e+2:]
+}
+
+func getStringInBetween(str string, start string, end string) string {
+	s := strings.Index(str, start)
+	if s == -1 {
+		return ""
+	}
+	s += len(start)
+	e := strings.Index(str[s:], end)
+	if e == -1 {
+		return ""
+	}
+	return str[s : s+e]
 }

@@ -13,6 +13,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type ConfigFilter struct {
+	Target    string `yaml:"target"`
+	Condition string `yaml:"condition"`
+}
+
 type ConfigSessionOverride struct {
 	Target    string `yaml:"target"`
 	Condition string `yaml:"condition"`
@@ -38,14 +43,16 @@ type ConfigSession struct {
 }
 
 type Config struct {
-	configPath           string
-	LogLevel             string        `yaml:"log_level"`
-	NetboxUrl            string        `yaml:"netbox_url"`
-	NetboxToken          string        `yaml:"netbox_token"`
-	RootPath             string        `yaml:"root_path"`
-	Session              ConfigSession `yaml:"session"`
-	EnablePeriodicSync   bool          `yaml:"periodic_sync_enable"`
-	PeriodicSyncInterval *int          `yaml:"periodic_sync_interval"`
+	configPath              string
+	LogLevel                string         `yaml:"log_level"`
+	NetboxUrl               string         `yaml:"netbox_url"`
+	NetboxToken             string         `yaml:"netbox_token"`
+	RootPath                string         `yaml:"root_path"`
+	Filters                 []ConfigFilter `yaml:"filters"`
+	Session                 ConfigSession  `yaml:"session"`
+	EnableConsoleServerSync bool           `yaml:"console_server_sync_enable"`
+	EnablePeriodicSync      bool           `yaml:"periodic_sync_enable"`
+	PeriodicSyncInterval    *int           `yaml:"periodic_sync_interval"`
 }
 
 func NewConfig(configPath string) (*Config, error) {
