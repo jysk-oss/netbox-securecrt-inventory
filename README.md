@@ -88,6 +88,9 @@ netbox_url: <netbox_url>
 netbox_token: <netbox_token>
 root_path: NetBox
 
+# Enable / Disable sync of console server ports
+console_server_sync_enable: false
+
 # Enable/Disable periodic sync (note: SecureCRT needs to be restarted for changes to take effect)
 periodic_sync_enable: true
 periodic_sync_interval: 120
@@ -132,6 +135,15 @@ session:
     - target: device_name
       condition: "{{ device_name endsWith '.1' }}"
       value: "{{ replace(device_name, '.1', '') }}"
+
+    # if console_server_sync_enable is enabled, we can use is_console_session to check if its a console server, and console_server_port is set to the port name
+    # in the example below we transform "Port 1" to 3001 and change the device name to append (console)
+    - target: device_port
+      condition: '{{ is_console_session == true }}'
+      value: '{{ 3000 + int(replace(console_server_port, "Port ", "")) }}'
+    - target: device_name
+      condition: '{{ is_console_session == true }}'
+      value: '{{ device_name }} (console)'
 ```
 
 ## Development
