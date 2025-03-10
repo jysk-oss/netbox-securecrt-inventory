@@ -22,12 +22,15 @@ type Environment struct {
 	DeviceRole                 string `expr:"device_role"`
 	DeviceType                 string `expr:"device_type"`
 	DeviceIP                   string `expr:"device_ip"`
+	DevicePort                 int    `expr:"device_port"`
 	RegionName                 string `expr:"region_name"`
 	TenantName                 string `expr:"tenant_name"`
 	SiteName                   string `expr:"site_name"`
 	SiteGroup                  string `expr:"site_group"`
 	SiteAddress                string `expr:"site_address"`
 	VirtualChassisName         string `expr:"virtual_chassis_name"`
+	IsConsoleSession           bool   `expr:"is_console_session"`
+	ConsoleServerPort          string `expr:"console_server_port"`
 
 	Device interface{} `expr:"device"`
 	Site   interface{} `expr:"site"`

@@ -106,7 +106,7 @@ func (nb *NetBox) GetSites() ([]Site, error) {
 		}
 	}
 
-	slog.Info("Retrived sites", slog.Int("count", len(results)))
+	slog.Info("Retrieved sites", slog.Int("count", len(results)))
 	return results, nil
 }
 
@@ -145,7 +145,7 @@ func (nb *NetBox) GetDevices() ([]DeviceWithConfigContext, error) {
 		}
 	}
 
-	slog.Info("Retrived devices", slog.Int("count", len(results)))
+	slog.Info("Retrieved devices", slog.Int("count", len(results)))
 	return results, nil
 }
 
@@ -184,6 +184,45 @@ func (nb *NetBox) GetVirtualMachines() ([]VirtualMachineWithConfigContext, error
 		}
 	}
 
-	slog.Info("Retrived virtual machines", slog.Int("count", len(results)))
+	slog.Info("Retrieved virtual machines", slog.Int("count", len(results)))
+	return results, nil
+}
+
+func (nb *NetBox) GetConsoleServerPorts() ([]ConsoleServerPort, error) {
+	var results = make([]ConsoleServerPort, 0)
+	hasMorePages := true
+	for hasMorePages {
+		currentCount := len(results)
+		req, err := nb.PrepareRequest("GET", fmt.Sprintf("/dcim/console-server-ports?limit=%d&offset=%d", nb.limit, currentCount))
+		if err != nil {
+			return results, err
+		}
+
+		response, err := nb.httpClient.Do(req)
+		if err != nil {
+			slog.Error("Failed to get sites from netbox", slog.String("error", err.Error()))
+			return nil, ErrFailedToQuerySites
+		}
+		defer response.Body.Close()
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			slog.Error("Failed to read body from sites request", slog.String("error", err.Error()))
+			return nil, ErrFailedToQuerySites
+		}
+
+		var data NetBoxRespone[ConsoleServerPort]
+		err = json.Unmarshal(body, &data)
+		if err != nil {
+			slog.Error("Failed to parse sites from netbox", slog.String("error", err.Error()))
+			return nil, ErrFailedToQuerySites
+		}
+
+		results = append(results, data.Results...)
+		if len(data.Results) < int(nb.limit) {
+			hasMorePages = false
+		}
+	}
+
+	slog.Info("Retrieved console server ports", slog.Int("count", len(results)))
 	return results, nil
 }

@@ -92,6 +92,12 @@ root_path: NetBox
 periodic_sync_enable: true
 periodic_sync_interval: 120
 
+# Filter what is synced, default is sync everything
+# All filters are evaluated for each item, and needs to return true, if any of the filters return false it will not be synced.
+filters:
+    - target: path
+      condition: "{{ site_group != 'external' }}"
+
 # Session settings
 session:
   # path: is the default session path template

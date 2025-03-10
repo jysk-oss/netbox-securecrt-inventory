@@ -85,6 +85,15 @@ func applyOverrides(overrides []config.ConfigSessionOverride, env *evaluator.Env
 				} else {
 					env.Firewall = "Session:" + sVal
 				}
+
+			}
+		}
+
+		iVal, ok := val.(int)
+		if val != nil && ok {
+			switch override.Target {
+			case "device_port":
+				env.DevicePort = iVal
 			}
 		}
 	}
@@ -95,6 +104,7 @@ func applyOverrides(overrides []config.ConfigSessionOverride, env *evaluator.Env
 func getSessionWithOverrides(fullPath string, env *evaluator.Environment) *securecrt.SecureCRTSession {
 	session := securecrt.NewSession(fullPath)
 	session.IP = env.DeviceIP
+	session.Port = env.DevicePort
 	session.Path = env.Path
 	session.DeviceName = env.DeviceName
 	session.CredentialName = env.Credential
