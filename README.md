@@ -89,6 +89,8 @@ netbox_token: <netbox_token>
 root_path: NetBox
 
 # Enable / Disable sync of console server ports
+# WARNING: By default the sessions will have the same name as the device, we suggest to override them (see below for an example)
+# This is by design, as to not force a preference on users.
 console_server_sync_enable: false
 
 # Enable/Disable periodic sync (note: SecureCRT needs to be restarted for changes to take effect)
