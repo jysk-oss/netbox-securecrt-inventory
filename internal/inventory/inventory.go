@@ -176,8 +176,8 @@ func (i *InventorySync) getConsoleSessions(devices []netbox.DeviceWithConfigCont
 		env.DeviceRole = endDevice.Role.Name
 		env.DeviceType = deviceType
 		env.DeviceIP = *ipAddress
-		env.RegionName = regionName
-		env.TenantName = tenant
+		env.RegionName = strings.ReplaceAll(regionName, "/", "")
+		env.TenantName = strings.ReplaceAll(tenant, "/", "")
 		env.Site = site
 		env.SiteName = site.Display
 		env.SiteGroup = siteGroup
@@ -241,8 +241,8 @@ func (i *InventorySync) getDeviceSessions(devices []netbox.DeviceWithConfigConte
 		env.DeviceRole = device.Role.Name
 		env.DeviceType = deviceType
 		env.DeviceIP = *ipAddress
-		env.RegionName = regionName
-		env.TenantName = tenant
+		env.RegionName = strings.ReplaceAll(regionName, "/", "")
+		env.TenantName = strings.ReplaceAll(tenant, "/", "")
 		env.Site = site
 		env.SiteName = site.Display
 		env.SiteGroup = siteGroup
@@ -307,8 +307,8 @@ func (i *InventorySync) getVirtualMachineSessions(devices []netbox.VirtualMachin
 		env.DeviceRole = "Virtual Machine"
 		env.DeviceType = deviceType
 		env.DeviceIP = *ipAddress
-		env.RegionName = regionName
-		env.TenantName = tenant
+		env.RegionName = strings.ReplaceAll(regionName, "/", "")
+		env.TenantName = strings.ReplaceAll(tenant, "/", "")
 		env.Site = site
 		env.SiteName = site.Display
 		env.SiteGroup = siteGroup
