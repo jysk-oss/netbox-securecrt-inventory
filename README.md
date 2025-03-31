@@ -42,7 +42,7 @@ device_ip: Device IP without subnet/prefix
 region_name: Region name from NetBox
 tenant_name: Tenant name from NetBox
 site_name: Site name from NetBox
-site_group: Site Group name from NetBox
+site_group: Site Group slug from NetBox
 site_address: Site address from NetBox
 virtual_chassis_name: Virtual Chassis name from NetBox
 ```
