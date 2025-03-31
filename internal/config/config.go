@@ -14,7 +14,6 @@ import (
 )
 
 type ConfigFilter struct {
-	Target    string `yaml:"target"`
 	Condition string `yaml:"condition"`
 }
 
