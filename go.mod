@@ -6,7 +6,7 @@ toolchain go1.23.2
 
 require (
 	fyne.io/systray v1.11.0
-	github.com/expr-lang/expr v1.17.0
+	github.com/expr-lang/expr v1.17.7
 	github.com/sqweek/dialog v0.0.0-20240226140203-065105509627
 	golang.org/x/sync v0.8.0
 	gopkg.in/yaml.v3 v3.0.1
