@@ -18,6 +18,11 @@ case "$(uname)" in
 
     (cd dist/darwin/arm64 && zip -r ../../securecrt-inventory-darwin-arm64.zip securecrt-inventory.app)
     (cd dist/darwin/amd64 && zip -r ../../securecrt-inventory-darwin-amd64.zip securecrt-inventory.app)
+
+    CGO_ENABLED=1 GOOS=windows GOARCH=amd64 \
+      go build -ldflags "-H=windowsgui" -o dist/securecrt-inventory.exe main.go
+
+    (cd dist && zip -r securecrt-inventory-windows-amd64.zip securecrt-inventory.exe)
     ;;
 
   Linux)
@@ -27,12 +32,5 @@ case "$(uname)" in
       go build -o dist/linux/amd64/securecrt-inventory main.go
 
     (cd dist/linux/amd64 && zip -r ../../securecrt-inventory-linux-amd64.zip securecrt-inventory)
-    ;;
-
-  MINGW*|MSYS*|CYGWIN*)
-    CGO_ENABLED=1 GOOS=windows GOARCH=amd64 \
-      go build -ldflags "-H=windowsgui" -o dist/securecrt-inventory.exe main.go
-
-    (cd dist && zip -r securecrt-inventory-windows-amd64.zip securecrt-inventory.exe)
     ;;
 esac
