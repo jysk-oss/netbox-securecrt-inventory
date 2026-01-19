@@ -12,7 +12,7 @@ This tool will automatically run in the background and perform periodic synchron
    - Update `overrides` as needed.
    - NB: It's also possible to create the config file by running the program as it will be created with defaults if missing.
 3. Run the program. It should now start running as a systray program.
-4. Optional: Set it to start automatically on Windows/macOS startup.
+4. Optional: Set it to start automatically on Windows/macOS/Linux startup.
 
 *Note:* On macOS, you might need to run `xattr -cr securecrt-inventory` to be able to execute it, as the binary is not signed. Alternatively, consider building the code yourself as a workaround.
 
