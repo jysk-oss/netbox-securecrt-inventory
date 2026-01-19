@@ -3,27 +3,46 @@ name: Release version
 on:
   push:
     branches: [ "master" ]
-    # Publish semver tags as releases.
     tags: [ 'v*.*.*' ]
 
 jobs:
-  build-release:
-    runs-on: macos-latest
+  build:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: write
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
           go-version: 1.21.1
 
-      - name: Build release files
-        run: |
-          ./tools/build.sh
+      - name: Build
+        run: ./tools/build.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.os }}
+          path: dist/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
 
       - uses: ncipollo/release-action@v1
         with:
-          artifacts: "dist/*"
+          artifacts: "dist/**/*.zip"
           generateReleaseNotes: true
