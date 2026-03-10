@@ -30,6 +30,7 @@ type ConfigNameOverwrite struct {
 
 type ConfigSessionOptions struct {
 	ConnectionProtocol string `yaml:"connection_protocol"`
+	Username           string `yaml:"username"`
 	Credential         string `yaml:"credential"`
 	Firewall           string `yaml:"firewall"`
 }

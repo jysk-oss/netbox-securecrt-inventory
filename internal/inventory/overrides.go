@@ -79,6 +79,10 @@ func applyOverrides(overrides []config.ConfigSessionOverride, env *evaluator.Env
 				env.ConnectionProtocol = sVal
 			case "credential":
 				env.Credential = sVal
+			case "username":
+				env.Username = sVal
+			case "device_ip":
+				env.DeviceIP = sVal
 			case "firewall":
 				if sVal == "" || sVal == "None" {
 					env.Firewall = "None"
@@ -107,10 +111,15 @@ func getSessionWithOverrides(fullPath string, env *evaluator.Environment) *secur
 	session.Port = env.DevicePort
 	session.Path = env.Path
 	session.DeviceName = env.DeviceName
-	session.CredentialName = env.Credential
 	session.Description = env.Description
 	session.Protocol = env.ConnectionProtocol
 	session.Firewall = env.Firewall
+	session.CredentialName = env.Credential
+	session.Username = env.Username
+
+	if env.Username != "" {
+		session.CredentialName = ""
+	}
 
 	return session
 }

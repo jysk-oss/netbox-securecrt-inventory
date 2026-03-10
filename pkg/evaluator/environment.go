@@ -16,6 +16,7 @@ type Environment struct {
 	DeviceName                 string `expr:"device_name"`
 	DeviceNameTemplate         string `expr:"device_name_template"`
 	Firewall                   string `expr:"firewall"`
+	Username                   string `expr:"username"`
 	FirewallTemplate           string `expr:"firewall_template"`
 	ConnectionProtocol         string `expr:"connection_protocol"`
 	ConnectionProtocolTemplate string `expr:"connection_protocol_template"`
