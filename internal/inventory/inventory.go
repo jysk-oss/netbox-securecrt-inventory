@@ -124,6 +124,7 @@ func (i *InventorySync) getCommonEnvironment(sync_type string) *evaluator.Enviro
 		DeviceNameTemplate:         i.cfg.Session.DeviceName,
 		FirewallTemplate:           i.cfg.Session.SessionOptions.Firewall,
 		ConnectionProtocolTemplate: i.cfg.Session.SessionOptions.ConnectionProtocol,
+		Username:                   i.cfg.Session.SessionOptions.Username,
 	}
 }
 

@@ -119,9 +119,11 @@ session:
     credential: <username>
     # Set a firewall; supports templates and expressions
     firewall: "{{ FindTag(device.Tags, 'connection_firewall') ?? ''None'' }}"
+    # Set a default username (note: this can not be used together with `credential`)
+    username: <username>
 
   # Overrides based on conditions
-  # target can be one of: path, device_name, description, connection_protocol, credential, firewall
+  # target can be one of: path, device_name, device_ip, description, connection_protocol, credential, username, firewall
   # condition should always be an expression that evaluates to true or false
   # value is what to replace the target with; it can be a template or expression that returns a value
   overrides:

@@ -21,6 +21,7 @@ type SecureCRTSession struct {
 	Protocol       string `session:"Protocol Name" type:"S"`
 	Description    string `session:"Description" type:"Z"`
 	CredentialName string `session:"Credential Title" type:"S"`
+	Username       string `session:"Username" type:"S"`
 	Firewall       string `session:"Firewall Name" type:"S"`
 	fullPath       string
 }
@@ -29,6 +30,7 @@ func NewSession(fullPath string) *SecureCRTSession {
 	return &SecureCRTSession{
 		Firewall:       "None",
 		CredentialName: "",
+		Username:       "",
 		fullPath:       fullPath,
 	}
 }
@@ -121,7 +123,8 @@ func (s *SecureCRTSession) write(defaultConfig string, mode fs.FileMode) error {
 			value = val.Field(i).Elem().String()
 		}
 
-		if itemType == "Z" {
+		switch itemType {
+		case "Z":
 			items := strings.Split(value, "\n")
 			itemsLengthPadded := fmt.Sprintf("%08d", len(items))
 			data.WriteString(fmt.Sprintf("%s:\"%s\"=%s\n", itemType, key, itemsLengthPadded))
@@ -130,9 +133,9 @@ func (s *SecureCRTSession) write(defaultConfig string, mode fs.FileMode) error {
 					data.WriteString(" " + v + "\n")
 				}
 			}
-		} else if itemType == "D" {
+		case "D":
 			data.WriteString(fmt.Sprintf("%s:\"%s\"=%08X\n", itemType, key, val.Field(i).Int()))
-		} else {
+		default:
 			data.WriteString(fmt.Sprintf("%s:\"%s\"=%s\n", itemType, key, value))
 		}
 	}
