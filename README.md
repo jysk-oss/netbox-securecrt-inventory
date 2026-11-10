@@ -86,6 +86,8 @@ It's possible to debug expressions and templates, by enabling debug in the confi
 log_level: ERROR 
 netbox_url: <netbox_url>
 netbox_token: <netbox_token>
+# Results per API page; omitted or 0 defaults to 1000. Negative values are invalid.
+netbox_limit: 1000
 root_path: NetBox
 
 # Enable / Disable sync of console server ports

@@ -47,6 +47,7 @@ type Config struct {
 	LogLevel                string         `yaml:"log_level"`
 	NetboxUrl               string         `yaml:"netbox_url"`
 	NetboxToken             string         `yaml:"netbox_token"`
+	NetboxLimit             int32          `yaml:"netbox_limit"`
 	RootPath                string         `yaml:"root_path"`
 	Filters                 []ConfigFilter `yaml:"filters"`
 	Session                 ConfigSession  `yaml:"session"`
@@ -84,6 +85,13 @@ func (c *Config) SetDefaultsAndValidate() error {
 	// setup defaults
 	if c.LogLevel == "" {
 		c.LogLevel = "ERROR"
+	}
+
+	if c.NetboxLimit == 0 {
+		c.NetboxLimit = 1000
+	}
+	if c.NetboxLimit < 0 {
+		return errors.New("netbox_limit must be positive")
 	}
 
 	if c.PeriodicSyncInterval == nil {

@@ -25,14 +25,13 @@ type NetBox struct {
 	httpClient *http.Client
 }
 
-func New(url string, token string, ctx context.Context) *NetBox {
+func New(url string, token string, limit int32, ctx context.Context) *NetBox {
 	schema := "https://"
 	if strings.Contains(url, "http://") || strings.Contains(url, "https://") {
 		schema = ""
 	}
 
 	url = fmt.Sprintf("%s%s", schema, url)
-	var limit int32 = 1000
 
 	return &NetBox{
 		url:        url,
@@ -101,9 +100,7 @@ func (nb *NetBox) GetSites() ([]Site, error) {
 		}
 
 		results = append(results, data.Results...)
-		if len(data.Results) < int(nb.limit) {
-			hasMorePages = false
-		}
+		hasMorePages = data.Next != ""
 	}
 
 	slog.Info("Retrieved sites", slog.Int("count", len(results)))
@@ -122,27 +119,25 @@ func (nb *NetBox) GetDevices() ([]DeviceWithConfigContext, error) {
 
 		response, err := nb.httpClient.Do(req)
 		if err != nil {
-			slog.Error("Failed to get sites from netbox", slog.String("error", err.Error()))
-			return nil, ErrFailedToQuerySites
+			slog.Error("Failed to get devices from netbox", slog.String("error", err.Error()))
+			return nil, ErrFailedToQueryDevices
 		}
 		defer response.Body.Close()
 		body, err := io.ReadAll(response.Body)
 		if err != nil {
-			slog.Error("Failed to read body from sites request", slog.String("error", err.Error()))
-			return nil, ErrFailedToQuerySites
+			slog.Error("Failed to read body from devices request", slog.String("error", err.Error()))
+			return nil, ErrFailedToQueryDevices
 		}
 
 		var data NetBoxRespone[DeviceWithConfigContext]
 		err = json.Unmarshal(body, &data)
 		if err != nil {
-			slog.Error("Failed to parse sites from netbox", slog.String("error", err.Error()))
-			return nil, ErrFailedToQuerySites
+			slog.Error("Failed to parse devices from netbox", slog.String("error", err.Error()))
+			return nil, ErrFailedToQueryDevices
 		}
 
 		results = append(results, data.Results...)
-		if len(data.Results) < int(nb.limit) {
-			hasMorePages = false
-		}
+		hasMorePages = data.Next != ""
 	}
 
 	slog.Info("Retrieved devices", slog.Int("count", len(results)))
@@ -161,27 +156,25 @@ func (nb *NetBox) GetVirtualMachines() ([]VirtualMachineWithConfigContext, error
 
 		response, err := nb.httpClient.Do(req)
 		if err != nil {
-			slog.Error("Failed to get sites from netbox", slog.String("error", err.Error()))
-			return nil, ErrFailedToQuerySites
+			slog.Error("Failed to get virtual machines from netbox", slog.String("error", err.Error()))
+			return nil, ErrFailedToQueryVirtualMachines
 		}
 		defer response.Body.Close()
 		body, err := io.ReadAll(response.Body)
 		if err != nil {
-			slog.Error("Failed to read body from sites request", slog.String("error", err.Error()))
-			return nil, ErrFailedToQuerySites
+			slog.Error("Failed to read body from virtual machines request", slog.String("error", err.Error()))
+			return nil, ErrFailedToQueryVirtualMachines
 		}
 
 		var data NetBoxRespone[VirtualMachineWithConfigContext]
 		err = json.Unmarshal(body, &data)
 		if err != nil {
-			slog.Error("Failed to parse sites from netbox", slog.String("error", err.Error()))
-			return nil, ErrFailedToQuerySites
+			slog.Error("Failed to parse virtual machines from netbox", slog.String("error", err.Error()))
+			return nil, ErrFailedToQueryVirtualMachines
 		}
 
 		results = append(results, data.Results...)
-		if len(data.Results) < int(nb.limit) {
-			hasMorePages = false
-		}
+		hasMorePages = data.Next != ""
 	}
 
 	slog.Info("Retrieved virtual machines", slog.Int("count", len(results)))
@@ -200,27 +193,25 @@ func (nb *NetBox) GetConsoleServerPorts() ([]ConsoleServerPort, error) {
 
 		response, err := nb.httpClient.Do(req)
 		if err != nil {
-			slog.Error("Failed to get sites from netbox", slog.String("error", err.Error()))
-			return nil, ErrFailedToQuerySites
+			slog.Error("Failed to get console server ports from netbox", slog.String("error", err.Error()))
+			return nil, ErrFailedToQueryConsoleServerPorts
 		}
 		defer response.Body.Close()
 		body, err := io.ReadAll(response.Body)
 		if err != nil {
-			slog.Error("Failed to read body from sites request", slog.String("error", err.Error()))
-			return nil, ErrFailedToQuerySites
+			slog.Error("Failed to read body from console server ports request", slog.String("error", err.Error()))
+			return nil, ErrFailedToQueryConsoleServerPorts
 		}
 
 		var data NetBoxRespone[ConsoleServerPort]
 		err = json.Unmarshal(body, &data)
 		if err != nil {
-			slog.Error("Failed to parse sites from netbox", slog.String("error", err.Error()))
-			return nil, ErrFailedToQuerySites
+			slog.Error("Failed to parse console server ports from netbox", slog.String("error", err.Error()))
+			return nil, ErrFailedToQueryConsoleServerPorts
 		}
 
 		results = append(results, data.Results...)
-		if len(data.Results) < int(nb.limit) {
-			hasMorePages = false
-		}
+		hasMorePages = data.Next != ""
 	}
 
 	slog.Info("Retrieved console server ports", slog.Int("count", len(results)))
