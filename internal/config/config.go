@@ -43,17 +43,18 @@ type ConfigSession struct {
 }
 
 type Config struct {
-	configPath              string
-	LogLevel                string         `yaml:"log_level"`
-	NetboxUrl               string         `yaml:"netbox_url"`
-	NetboxToken             string         `yaml:"netbox_token"`
-	NetboxLimit             int32          `yaml:"netbox_limit"`
-	RootPath                string         `yaml:"root_path"`
-	Filters                 []ConfigFilter `yaml:"filters"`
-	Session                 ConfigSession  `yaml:"session"`
-	EnableConsoleServerSync bool           `yaml:"console_server_sync_enable"`
-	EnablePeriodicSync      bool           `yaml:"periodic_sync_enable"`
-	PeriodicSyncInterval    *int           `yaml:"periodic_sync_interval"`
+	configPath                 string
+	LogLevel                   string         `yaml:"log_level"`
+	NetboxUrl                  string         `yaml:"netbox_url"`
+	NetboxToken                string         `yaml:"netbox_token"`
+	NetboxLimit                int32          `yaml:"netbox_limit"`
+	NetboxExcludeConfigContext bool           `yaml:"netbox_exclude_config_context"`
+	RootPath                   string         `yaml:"root_path"`
+	Filters                    []ConfigFilter `yaml:"filters"`
+	Session                    ConfigSession  `yaml:"session"`
+	EnableConsoleServerSync    bool           `yaml:"console_server_sync_enable"`
+	EnablePeriodicSync         bool           `yaml:"periodic_sync_enable"`
+	PeriodicSyncInterval       *int           `yaml:"periodic_sync_interval"`
 }
 
 func NewConfig(configPath string) (*Config, error) {

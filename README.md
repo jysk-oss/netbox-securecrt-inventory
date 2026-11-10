@@ -16,6 +16,8 @@ This tool will automatically run in the background and perform periodic synchron
 
 *Note:* On macOS, you might need to run `xattr -cr securecrt-inventory` to be able to execute it, as the binary is not signed. Alternatively, consider building the code yourself as a workaround.
 
+Each sync checks the NetBox version via `/api/status/`. NetBox 4.6 and newer use cursor pagination; older or unrecognized versions use offset pagination. Both use `netbox_limit` as the requested page size.
+
 ## Templates and Expressions
 
 The config supports two special types: templates and expressions. In this section, we'll cover the differences and how to use them.
@@ -88,6 +90,9 @@ netbox_url: <netbox_url>
 netbox_token: <netbox_token>
 # Results per API page; omitted or 0 defaults to 1000. Negative values are invalid.
 netbox_limit: 1000
+# Exclude rendered config context from devices and VMs; default is false.
+# Keep false if filters or overrides use device.ConfigContext.
+netbox_exclude_config_context: false
 root_path: NetBox
 
 # Enable / Disable sync of console server ports

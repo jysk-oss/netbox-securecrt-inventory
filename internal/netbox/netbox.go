@@ -7,7 +7,10 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
+	"sync/atomic"
 )
 
 type NetBoxRespone[T any] struct {
@@ -18,14 +21,16 @@ type NetBoxRespone[T any] struct {
 }
 
 type NetBox struct {
-	url        string
-	token      string
-	limit      int32
-	ctx        context.Context
-	httpClient *http.Client
+	url                  string
+	token                string
+	limit                int32
+	excludeConfigContext bool
+	ctx                  context.Context
+	httpClient           *http.Client
+	cursorPagination     atomic.Bool
 }
 
-func New(url string, token string, limit int32, ctx context.Context) *NetBox {
+func New(url string, token string, limit int32, excludeConfigContext bool, ctx context.Context) *NetBox {
 	schema := "https://"
 	if strings.Contains(url, "http://") || strings.Contains(url, "https://") {
 		schema = ""
@@ -34,17 +39,18 @@ func New(url string, token string, limit int32, ctx context.Context) *NetBox {
 	url = fmt.Sprintf("%s%s", schema, url)
 
 	return &NetBox{
-		url:        url,
-		token:      token,
-		limit:      limit,
-		ctx:        ctx,
-		httpClient: &http.Client{},
+		url:                  url,
+		token:                token,
+		limit:                limit,
+		excludeConfigContext: excludeConfigContext,
+		ctx:                  ctx,
+		httpClient:           &http.Client{},
 	}
 }
 
 func (nb *NetBox) PrepareRequest(method string, url string) (*http.Request, error) {
 	url = fmt.Sprintf("%s/api%s", nb.url, url)
-	req, err := http.NewRequest(method, url, nil)
+	req, err := http.NewRequestWithContext(nb.ctx, method, url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -55,165 +61,129 @@ func (nb *NetBox) PrepareRequest(method string, url string) (*http.Request, erro
 	return req, nil
 }
 
-func (nb *NetBox) TestConnection() error {
-	req, err := nb.PrepareRequest("GET", "/status")
+func (nb *NetBox) get(path string, result any) error {
+	req, err := nb.PrepareRequest(http.MethodGet, path)
 	if err != nil {
 		return err
 	}
-
-	_, err = nb.httpClient.Do(req)
+	response, err := nb.httpClient.Do(req)
 	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("GET %s: %s", path, response.Status)
+	}
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(body, result)
+}
+
+func (nb *NetBox) TestConnection() error {
+	var status struct {
+		Version string `json:"netbox-version"`
+	}
+	if err := nb.get("/status/", &status); err != nil {
 		slog.Error("Unable to connect to netbox", slog.String("url", nb.url), slog.String("error", err.Error()))
-		return fmt.Errorf("unable to connect: %s", nb.url)
+		return fmt.Errorf("unable to connect: %s: %w", nb.url, err)
 	}
 
+	var major, minor int
+	_, err := fmt.Sscanf(status.Version, "%d.%d", &major, &minor)
+	nb.cursorPagination.Store(err == nil && (major > 4 || major == 4 && minor >= 6))
+	if err != nil {
+		slog.Warn("Unknown NetBox version; using offset pagination", slog.String("version", status.Version))
+	}
 	return nil
 }
 
 func (nb *NetBox) GetSites() ([]Site, error) {
-	var results = make([]Site, 0)
-	hasMorePages := true
-	for hasMorePages {
-		currentCount := len(results)
-		req, err := nb.PrepareRequest("GET", fmt.Sprintf("/dcim/sites/?limit=%d&offset=%d", nb.limit, currentCount))
-		if err != nil {
-			return results, err
-		}
-
-		response, err := nb.httpClient.Do(req)
-		if err != nil {
-			slog.Error("Failed to get sites from netbox", slog.String("error", err.Error()))
-			return nil, ErrFailedToQuerySites
-		}
-		defer response.Body.Close()
-		body, err := io.ReadAll(response.Body)
-		if err != nil {
-			slog.Error("Failed to read body from sites request", slog.String("error", err.Error()))
-			return nil, ErrFailedToQuerySites
-		}
-
-		var data NetBoxRespone[Site]
-		err = json.Unmarshal(body, &data)
-		if err != nil {
-			slog.Error("Failed to parse sites from netbox", slog.String("error", err.Error()))
-			return nil, ErrFailedToQuerySites
-		}
-
-		results = append(results, data.Results...)
-		hasMorePages = data.Next != ""
+	results, err := getAll[Site](nb, "/dcim/sites/")
+	if err != nil {
+		slog.Error("Failed to get sites from netbox", slog.String("error", err.Error()))
+		return nil, ErrFailedToQuerySites
 	}
-
 	slog.Info("Retrieved sites", slog.Int("count", len(results)))
 	return results, nil
 }
 
 func (nb *NetBox) GetDevices() ([]DeviceWithConfigContext, error) {
-	var results = make([]DeviceWithConfigContext, 0)
-	hasMorePages := true
-	for hasMorePages {
-		currentCount := len(results)
-		req, err := nb.PrepareRequest("GET", fmt.Sprintf("/dcim/devices/?has_primary_ip=true&limit=%d&offset=%d", nb.limit, currentCount))
-		if err != nil {
-			return results, err
-		}
-
-		response, err := nb.httpClient.Do(req)
-		if err != nil {
-			slog.Error("Failed to get devices from netbox", slog.String("error", err.Error()))
-			return nil, ErrFailedToQueryDevices
-		}
-		defer response.Body.Close()
-		body, err := io.ReadAll(response.Body)
-		if err != nil {
-			slog.Error("Failed to read body from devices request", slog.String("error", err.Error()))
-			return nil, ErrFailedToQueryDevices
-		}
-
-		var data NetBoxRespone[DeviceWithConfigContext]
-		err = json.Unmarshal(body, &data)
-		if err != nil {
-			slog.Error("Failed to parse devices from netbox", slog.String("error", err.Error()))
-			return nil, ErrFailedToQueryDevices
-		}
-
-		results = append(results, data.Results...)
-		hasMorePages = data.Next != ""
+	path := "/dcim/devices/?has_primary_ip=true"
+	if nb.excludeConfigContext {
+		path += "&exclude=config_context"
 	}
-
+	results, err := getAll[DeviceWithConfigContext](nb, path)
+	if err != nil {
+		slog.Error("Failed to get devices from netbox", slog.String("error", err.Error()))
+		return nil, ErrFailedToQueryDevices
+	}
 	slog.Info("Retrieved devices", slog.Int("count", len(results)))
 	return results, nil
 }
 
 func (nb *NetBox) GetVirtualMachines() ([]VirtualMachineWithConfigContext, error) {
-	var results = make([]VirtualMachineWithConfigContext, 0)
-	hasMorePages := true
-	for hasMorePages {
-		currentCount := len(results)
-		req, err := nb.PrepareRequest("GET", fmt.Sprintf("/virtualization/virtual-machines/?has_primary_ip=true&limit=%d&offset=%d", nb.limit, currentCount))
-		if err != nil {
-			return results, err
-		}
-
-		response, err := nb.httpClient.Do(req)
-		if err != nil {
-			slog.Error("Failed to get virtual machines from netbox", slog.String("error", err.Error()))
-			return nil, ErrFailedToQueryVirtualMachines
-		}
-		defer response.Body.Close()
-		body, err := io.ReadAll(response.Body)
-		if err != nil {
-			slog.Error("Failed to read body from virtual machines request", slog.String("error", err.Error()))
-			return nil, ErrFailedToQueryVirtualMachines
-		}
-
-		var data NetBoxRespone[VirtualMachineWithConfigContext]
-		err = json.Unmarshal(body, &data)
-		if err != nil {
-			slog.Error("Failed to parse virtual machines from netbox", slog.String("error", err.Error()))
-			return nil, ErrFailedToQueryVirtualMachines
-		}
-
-		results = append(results, data.Results...)
-		hasMorePages = data.Next != ""
+	path := "/virtualization/virtual-machines/?has_primary_ip=true"
+	if nb.excludeConfigContext {
+		path += "&exclude=config_context"
 	}
-
+	results, err := getAll[VirtualMachineWithConfigContext](nb, path)
+	if err != nil {
+		slog.Error("Failed to get virtual machines from netbox", slog.String("error", err.Error()))
+		return nil, ErrFailedToQueryVirtualMachines
+	}
 	slog.Info("Retrieved virtual machines", slog.Int("count", len(results)))
 	return results, nil
 }
 
 func (nb *NetBox) GetConsoleServerPorts() ([]ConsoleServerPort, error) {
-	var results = make([]ConsoleServerPort, 0)
-	hasMorePages := true
-	for hasMorePages {
-		currentCount := len(results)
-		req, err := nb.PrepareRequest("GET", fmt.Sprintf("/dcim/console-server-ports?limit=%d&offset=%d", nb.limit, currentCount))
-		if err != nil {
-			return results, err
-		}
+	results, err := getAll[ConsoleServerPort](nb, "/dcim/console-server-ports/")
+	if err != nil {
+		slog.Error("Failed to get console server ports from netbox", slog.String("error", err.Error()))
+		return nil, ErrFailedToQueryConsoleServerPorts
+	}
+	slog.Info("Retrieved console server ports", slog.Int("count", len(results)))
+	return results, nil
+}
 
-		response, err := nb.httpClient.Do(req)
-		if err != nil {
-			slog.Error("Failed to get console server ports from netbox", slog.String("error", err.Error()))
-			return nil, ErrFailedToQueryConsoleServerPorts
-		}
-		defer response.Body.Close()
-		body, err := io.ReadAll(response.Body)
-		if err != nil {
-			slog.Error("Failed to read body from console server ports request", slog.String("error", err.Error()))
-			return nil, ErrFailedToQueryConsoleServerPorts
-		}
+func getAll[T any](nb *NetBox, path string) ([]T, error) {
+	endpoint, err := url.Parse(path)
+	if err != nil {
+		return nil, err
+	}
 
-		var data NetBoxRespone[ConsoleServerPort]
-		err = json.Unmarshal(body, &data)
-		if err != nil {
-			slog.Error("Failed to parse console server ports from netbox", slog.String("error", err.Error()))
-			return nil, ErrFailedToQueryConsoleServerPorts
+	query := endpoint.Query()
+	query.Set("limit", strconv.Itoa(int(nb.limit)))
+	if nb.cursorPagination.Load() {
+		query.Set("start", "0")
+	} else {
+		query.Set("offset", "0")
+	}
+
+	endpoint.RawQuery = query.Encode()
+	results := make([]T, 0)
+	for {
+		var data NetBoxRespone[T]
+		if err := nb.get(endpoint.String(), &data); err != nil {
+			return nil, err
 		}
 
 		results = append(results, data.Results...)
-		hasMorePages = data.Next != ""
-	}
+		if data.Next == "" {
+			return results, nil
+		}
 
-	slog.Info("Retrieved console server ports", slog.Int("count", len(results)))
-	return results, nil
+		next, err := url.Parse(data.Next)
+		if err != nil {
+			return nil, err
+		}
+
+		if next.RawQuery == "" || next.RawQuery == endpoint.RawQuery {
+			return nil, fmt.Errorf("pagination did not advance for %s", path)
+		}
+
+		// Keep the configured server and endpoint when following pagination links.
+		endpoint.RawQuery = next.RawQuery
+	}
 }
