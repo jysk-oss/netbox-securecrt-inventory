@@ -2,6 +2,7 @@ package netbox
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -30,7 +31,7 @@ type NetBox struct {
 	cursorPagination     atomic.Bool
 }
 
-func New(url string, token string, limit int32, excludeConfigContext bool, ctx context.Context) *NetBox {
+func New(url string, token string, limit int32, excludeConfigContext bool, skipTlsVerify bool, ctx context.Context) *NetBox {
 	schema := "https://"
 	if strings.Contains(url, "http://") || strings.Contains(url, "https://") {
 		schema = ""
@@ -38,13 +39,21 @@ func New(url string, token string, limit int32, excludeConfigContext bool, ctx c
 
 	url = fmt.Sprintf("%s%s", schema, url)
 
+	httpClient := &http.Client{}
+	if skipTlsVerify {
+		slog.Warn("TLS certificate verification is disabled for NetBox")
+		httpClient.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+	}
+
 	return &NetBox{
 		url:                  url,
 		token:                token,
 		limit:                limit,
 		excludeConfigContext: excludeConfigContext,
 		ctx:                  ctx,
-		httpClient:           &http.Client{},
+		httpClient:           httpClient,
 	}
 }
 

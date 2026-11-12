@@ -90,7 +90,7 @@ func main() {
 
 	// setup our netbox client, and the inventory client to combine them all
 	ctx, cancelCtx := context.WithCancel(context.Background())
-	nb := netbox.New(cfg.NetboxUrl, cfg.NetboxToken, cfg.NetboxLimit, cfg.NetboxExcludeConfigContext, ctx)
+	nb := netbox.New(cfg.NetboxUrl, cfg.NetboxToken, cfg.NetboxLimit, cfg.NetboxExcludeConfigContext, cfg.NetboxSkipTlsVerify, ctx)
 	invClient := inventory.New(cfg, nb, scrt, syncCallback)
 
 	// handle periodic sync if enabled

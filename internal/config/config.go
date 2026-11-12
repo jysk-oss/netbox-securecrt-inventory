@@ -49,6 +49,7 @@ type Config struct {
 	NetboxToken                string         `yaml:"netbox_token"`
 	NetboxLimit                int32          `yaml:"netbox_limit"`
 	NetboxExcludeConfigContext bool           `yaml:"netbox_exclude_config_context"`
+	NetboxSkipTlsVerify        bool           `yaml:"netbox_skip_tls_verify"`
 	RootPath                   string         `yaml:"root_path"`
 	Filters                    []ConfigFilter `yaml:"filters"`
 	Session                    ConfigSession  `yaml:"session"`
