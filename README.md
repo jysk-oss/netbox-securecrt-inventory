@@ -93,6 +93,10 @@ netbox_limit: 1000
 # Exclude rendered config context from devices and VMs; default is false.
 # Keep false if filters or overrides use device.ConfigContext.
 netbox_exclude_config_context: false
+# Skip TLS certificate verification when talking to NetBox; default is false.
+# Useful for self-signed or internal-CA certificates that the host platform rejects
+# (for example, macOS rejects TLS server certificates valid for more than 398 days).
+netbox_skip_tls_verify: false
 root_path: NetBox
 
 # Enable / Disable sync of console server ports
